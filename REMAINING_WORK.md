@@ -1,6 +1,6 @@
 # SimoNotes: Remaining Work
 
-This checklist tracks the requirements from the original SimoNotes brief against the current `SimoNotes2` project.
+This checklist tracks the requirements from the original SimoNotes brief against the current `SimoNotes` project.
 
 ## Current Baseline
 
@@ -13,9 +13,9 @@ This checklist tracks the requirements from the original SimoNotes brief against
 
 ## Immediate Application Features
 
-- [ ] Register the global `Ctrl+Alt+N` shortcut for the full application lifetime.
-- [ ] Handle `WM_HOTKEY` in the native host/message path and create a note through `NoteManager`.
-- [ ] Detect hotkey registration failure, such as a shortcut already owned by another application, and report it without crashing.
+- [x] Register the global `Ctrl+Alt+N` shortcut for the full application lifetime.
+- [x] Handle `WM_HOTKEY` in the native host/message path and create a note through `NoteManager`.
+- [x] Detect hotkey registration failure, such as a shortcut already owned by another application, and report it without crashing.
 - [ ] Add a notification-area icon and tray menu with **New note** and **Exit** commands.
 - [ ] Keep the application running when the last note is closed; exit only through the tray command or explicit application shutdown.
 - [ ] Verify the desktop host does not create an ordinary taskbar button and the tray icon is available while the app runs.

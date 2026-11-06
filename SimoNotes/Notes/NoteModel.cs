@@ -1,4 +1,4 @@
-namespace SimoNotes2.Notes;
+namespace SimoNotes.Notes;
 
 internal sealed class NoteModel
 {

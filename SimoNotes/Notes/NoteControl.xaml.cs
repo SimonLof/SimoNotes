@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 
-namespace SimoNotes2.Notes;
+namespace SimoNotes.Notes;
 
 public partial class NoteControl : UserControl
 {
@@ -20,8 +20,22 @@ public partial class NoteControl : UserControl
         set => Editor.Text = value;
     }
 
+    public void FocusEditor()
+    {
+        Editor.Focus();
+        Editor.CaretIndex = Editor.Text.Length;
+    }
+
     private void DragThumb_DragDelta(object sender, DragDeltaEventArgs e)
     {
+        var window = Window.GetWindow(this);
+        if (window is not null)
+        {
+            window.Left += e.HorizontalChange;
+            window.Top += e.VerticalChange;
+            return;
+        }
+
         Canvas.SetLeft(this, Canvas.GetLeft(this) + e.HorizontalChange);
         Canvas.SetTop(this, Canvas.GetTop(this) + e.VerticalChange);
     }

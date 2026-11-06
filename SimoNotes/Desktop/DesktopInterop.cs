@@ -1,4 +1,4 @@
-namespace SimoNotes2.Desktop;
+namespace SimoNotes.Desktop;
 
 internal sealed class DesktopInterop
 {
