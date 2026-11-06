@@ -14,12 +14,15 @@ internal sealed class NoteManager : IDisposable
         _surface = surface;
     }
 
+    public event EventHandler? NotesChanged;
+
     public NoteControl CreateNote(NoteModel model)
     {
         var note = CreateNoteControl(model);
         Canvas.SetLeft(note, model.Left);
         Canvas.SetTop(note, model.Top);
         _surface.Children.Add(note);
+        OnNotesChanged();
         return note;
     }
 
@@ -44,7 +47,48 @@ internal sealed class NoteManager : IDisposable
         window.Show();
         window.Activate();
         note.FocusEditor();
+        OnNotesChanged();
         return note;
+    }
+
+    public List<NoteModel> GetNoteModels()
+    {
+        return _notes.Select(note =>
+        {
+            var left = _floatingNoteWindows.TryGetValue(note, out var window) ? window.Left : Canvas.GetLeft(note);
+            var top = _floatingNoteWindows.TryGetValue(note, out window) ? window.Top : Canvas.GetTop(note);
+
+            return new NoteModel
+            {
+                Left = double.IsFinite(left) ? left : 0,
+                Top = double.IsFinite(top) ? top : 0,
+                Width = note.Width,
+                Height = note.Height,
+                Text = note.NoteText
+            };
+        }).ToList();
+    }
+
+    public void RemoveAllNotes()
+    {
+        foreach (var note in _notes.ToArray())
+        {
+            note.CloseRequested -= OnCloseRequested;
+            note.NoteChanged -= OnNoteChanged;
+            _surface.Children.Remove(note);
+
+            if (_floatingNoteWindows.Remove(note, out var window))
+            {
+                window.Deactivated -= OnFloatingNoteDeactivated;
+                window.Closed -= OnFloatingNoteClosed;
+                window.Content = null;
+                window.Close();
+            }
+        }
+
+        _notes.Clear();
+        _surface.Children.Clear();
+        OnNotesChanged();
     }
 
     public void Dispose()
@@ -52,6 +96,7 @@ internal sealed class NoteManager : IDisposable
         foreach (var note in _notes)
         {
             note.CloseRequested -= OnCloseRequested;
+            note.NoteChanged -= OnNoteChanged;
         }
 
         foreach (var note in _floatingNoteWindows.Keys.ToArray())
@@ -74,6 +119,7 @@ internal sealed class NoteManager : IDisposable
         };
 
         note.CloseRequested += OnCloseRequested;
+        note.NoteChanged += OnNoteChanged;
         _notes.Add(note);
         return note;
     }
@@ -86,6 +132,7 @@ internal sealed class NoteManager : IDisposable
         }
 
         note.CloseRequested -= OnCloseRequested;
+        note.NoteChanged -= OnNoteChanged;
         _notes.Remove(note);
         _surface.Children.Remove(note);
 
@@ -95,6 +142,8 @@ internal sealed class NoteManager : IDisposable
             window.Closed -= OnFloatingNoteClosed;
             window.Close();
         }
+
+        OnNotesChanged();
     }
 
     private void OnFloatingNoteDeactivated(object? sender, EventArgs e)
@@ -116,6 +165,7 @@ internal sealed class NoteManager : IDisposable
         window.Content = null;
         _surface.Children.Add(note);
         window.Close();
+        OnNotesChanged();
     }
 
     private void OnFloatingNoteClosed(object? sender, EventArgs e)
@@ -126,8 +176,10 @@ internal sealed class NoteManager : IDisposable
         }
 
         note.CloseRequested -= OnCloseRequested;
+        note.NoteChanged -= OnNoteChanged;
         _notes.Remove(note);
         _floatingNoteWindows.Remove(note);
+        OnNotesChanged();
     }
 
     private void CloseFloatingNoteWindow(NoteControl note)
@@ -138,5 +190,15 @@ internal sealed class NoteManager : IDisposable
             window.Closed -= OnFloatingNoteClosed;
             window.Close();
         }
+    }
+
+    private void OnNoteChanged(object? sender, EventArgs e)
+    {
+        OnNotesChanged();
+    }
+
+    private void OnNotesChanged()
+    {
+        NotesChanged?.Invoke(this, EventArgs.Empty);
     }
 }

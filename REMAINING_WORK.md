@@ -16,9 +16,9 @@ This checklist tracks the requirements from the original SimoNotes brief against
 - [x] Register the global `Ctrl+Alt+N` shortcut for the full application lifetime.
 - [x] Handle `WM_HOTKEY` in the native host/message path and create a note through `NoteManager`.
 - [x] Detect hotkey registration failure, such as a shortcut already owned by another application, and report it without crashing.
-- [ ] Add a notification-area icon and tray menu with **New note** and **Exit** commands.
-- [ ] Keep the application running when the last note is closed; exit only through the tray command or explicit application shutdown.
-- [ ] Verify the desktop host does not create an ordinary taskbar button and the tray icon is available while the app runs.
+- [x] Add a notification-area icon and tray menu with **New note** and **Exit** commands.
+- [x] Keep the application running when the last note is closed; exit only through the tray command or explicit application shutdown.
+- [x] Verify the desktop host does not create an ordinary taskbar button and the tray icon is available while the app runs.
 
 ## Desktop Integration Hardening
 
@@ -30,9 +30,9 @@ This checklist tracks the requirements from the original SimoNotes brief against
 
 ## Note Behavior and State
 
-- [ ] Add a user-accessible way to create notes in addition to the global shortcut, such as the tray menu.
-- [ ] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
-- [ ] Persist and restore each note's text, position, dimensions, and settings across application restarts.
+- [x] Add a user-accessible way to create notes in addition to the global shortcut, such as the tray menu.
+- [x] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
+- [x] Persist and restore each note's text, position, and dimensions across application restarts.
 - [ ] Add note color selection and store the selected color with that note.
 - [ ] Add text formatting and note-specific settings as required.
 - [ ] Keep note coordinates and sizes valid when monitors are added, removed, or rearranged.

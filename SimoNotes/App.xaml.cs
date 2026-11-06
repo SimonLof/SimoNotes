@@ -1,7 +1,16 @@
-﻿using SimoNotes.Desktop;
+﻿using System.IO;
+using DrawingIcon = System.Drawing.Icon;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
+using MessageBoxButton = System.Windows.MessageBoxButton;
+using MessageBoxImage = System.Windows.MessageBoxImage;
+using SimoNotes.Desktop;
 using SimoNotes.Notes;
+using SimoNotes.Settings;
 
 using System.Windows;
+using Forms = System.Windows.Forms;
+using DispatcherTimer = System.Windows.Threading.DispatcherTimer;
 
 namespace SimoNotes;
 
@@ -12,29 +21,52 @@ public partial class App : Application
 {
     private DesktopHost? _desktopHost;
     private NoteManager? _noteManager;
+    private Forms.NotifyIcon? _notifyIcon;
+    private Forms.ContextMenuStrip? _trayMenu;
+    private DrawingIcon? _trayIcon;
+    private SettingsWindow? _settingsWindow;
+    private readonly HotkeyBindingStore _hotkeyBindingStore = new();
+    private readonly NoteStateStore _noteStateStore = new();
+    private readonly DispatcherTimer _noteSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private int _createdNoteCount;
+    private bool _noteSaveErrorShown;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        _desktopHost = new DesktopHost();
+        _desktopHost = new DesktopHost(_hotkeyBindingStore.Load());
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
         _noteManager = new NoteManager(_desktopHost.NoteSurface);
-        _noteManager.CreateNote(new NoteModel
+        _noteManager.NotesChanged += OnNotesChanged;
+        _noteSaveTimer.Tick += OnNoteSaveTimerTick;
+        InitializeTrayIcon();
+
+        var savedNotes = _noteStateStore.Load();
+        if (savedNotes is null)
         {
-            Left = 80,
-            Top = 80,
-            Width = 300,
-            Height = 210,
-            Text = "Welcome to SimoNotes"
-        });
+            _noteManager.CreateNote(new NoteModel
+            {
+                Left = 80,
+                Top = 80,
+                Width = 300,
+                Height = 210,
+                Text = "Welcome to SimoNotes"
+            });
+        }
+        else
+        {
+            foreach (var note in savedNotes)
+            {
+                _noteManager.CreateNote(note);
+            }
+        }
 
         if(!_desktopHost.HotkeyRegistered)
         {
             MessageBox.Show(
-                $"Could not register Ctrl+Alt+N. Another application may already be using this shortcut. (Windows error {_desktopHost.HotkeyRegistrationError})",
+                $"Could not register {_desktopHost.CurrentHotkey.DisplayName}. Another application may already be using this shortcut. (Windows error {_desktopHost.HotkeyRegistrationError})",
                 "SimoNotes",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -43,6 +75,14 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _noteSaveTimer.Stop();
+        _noteSaveTimer.Tick -= OnNoteSaveTimerTick;
+        if (_noteManager is not null)
+        {
+            _noteManager.NotesChanged -= OnNotesChanged;
+            SaveNotesNow();
+        }
+
         if(_desktopHost is not null)
         {
             _desktopHost.NewNoteRequested -= OnNewNoteRequested;
@@ -50,7 +90,149 @@ public partial class App : Application
 
         _noteManager?.Dispose();
         _desktopHost?.Dispose();
+        _notifyIcon?.Dispose();
+        _trayMenu?.Dispose();
+        _trayIcon?.Dispose();
         base.OnExit(e);
+    }
+
+    private void InitializeTrayIcon()
+    {
+        _trayMenu = new Forms.ContextMenuStrip();
+        _trayMenu.Items.Add("New note", null, (_, _) => OnNewNoteRequested(this, EventArgs.Empty));
+        _trayMenu.Items.Add("Exit", null, (_, _) => Shutdown());
+        _trayMenu.Items.Add("Settings", null, (_, _) => ShowSettings());
+
+        _trayIcon = new DrawingIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "SimoNotes.ico"));
+        _notifyIcon = new Forms.NotifyIcon
+        {
+            ContextMenuStrip = _trayMenu,
+            Icon = _trayIcon,
+            Text = "SimoNotes",
+            Visible = true
+        };
+    }
+
+    private void ShowSettings()
+    {
+        if (_settingsWindow is { IsVisible: true })
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        if (_desktopHost is null)
+        {
+            return;
+        }
+
+        var settingsWindow = new SettingsWindow(_desktopHost.CurrentHotkey);
+        settingsWindow.HotkeyChangeRequested += OnHotkeyChangeRequested;
+        settingsWindow.ResetSettingsRequested += OnResetSettingsRequested;
+        settingsWindow.RemoveAllNotesRequested += OnRemoveAllNotesRequested;
+        settingsWindow.Closed += (_, _) =>
+        {
+            settingsWindow.HotkeyChangeRequested -= OnHotkeyChangeRequested;
+            settingsWindow.ResetSettingsRequested -= OnResetSettingsRequested;
+            settingsWindow.RemoveAllNotesRequested -= OnRemoveAllNotesRequested;
+            _settingsWindow = null;
+        };
+
+        _settingsWindow = settingsWindow;
+        settingsWindow.Show();
+    }
+
+    private void OnHotkeyChangeRequested(HotkeyBinding hotkey)
+    {
+        ApplyHotkey(hotkey);
+    }
+
+    private void OnResetSettingsRequested()
+    {
+        ApplyHotkey(HotkeyBinding.Default);
+    }
+
+    private void ApplyHotkey(HotkeyBinding hotkey)
+    {
+        if (_desktopHost is null || _settingsWindow is null)
+        {
+            return;
+        }
+
+        if (!_desktopHost.TrySetNewNoteHotkey(hotkey, out var error))
+        {
+            _settingsWindow.ShowRegistrationError(error);
+            return;
+        }
+
+        _settingsWindow.SetHotkey(hotkey);
+        try
+        {
+            _hotkeyBindingStore.Save(hotkey);
+        }
+        catch (IOException)
+        {
+            _settingsWindow.ShowSaveError();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _settingsWindow.ShowSaveError();
+        }
+    }
+
+    private void OnRemoveAllNotesRequested()
+    {
+        _noteManager?.RemoveAllNotes();
+        _noteSaveTimer.Stop();
+        SaveNotesNow();
+    }
+
+    private void OnNotesChanged(object? sender, EventArgs e)
+    {
+        _noteSaveTimer.Stop();
+        _noteSaveTimer.Start();
+    }
+
+    private void OnNoteSaveTimerTick(object? sender, EventArgs e)
+    {
+        _noteSaveTimer.Stop();
+        SaveNotesNow();
+    }
+
+    private void SaveNotesNow()
+    {
+        if (_noteManager is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _noteStateStore.Save(_noteManager.GetNoteModels());
+        }
+        catch (IOException)
+        {
+            ShowNoteSaveError();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            ShowNoteSaveError();
+        }
+    }
+
+    private void ShowNoteSaveError()
+    {
+        if (_noteSaveErrorShown)
+        {
+            return;
+        }
+
+        _noteSaveErrorShown = true;
+        MessageBox.Show(
+            "SimoNotes could not save your notes. Check that your user profile is writable.",
+            "SimoNotes",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 
     private void OnNewNoteRequested(object? sender, EventArgs e)

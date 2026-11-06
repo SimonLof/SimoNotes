@@ -59,6 +59,7 @@
                      BorderThickness="0"
                      FontSize="15"
                      Foreground="#FF30291F"
+                     TextChanged="Editor_TextChanged"
                      TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" />
             <Thumb x:Name="ResizeThumb"

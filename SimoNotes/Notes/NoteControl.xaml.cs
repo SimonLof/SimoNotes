@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using UserControl = System.Windows.Controls.UserControl;
 
 namespace SimoNotes.Notes;
 
@@ -13,6 +14,7 @@ public partial class NoteControl : UserControl
     }
 
     public event EventHandler? CloseRequested;
+    public event EventHandler? NoteChanged;
 
     public string NoteText
     {
@@ -33,17 +35,25 @@ public partial class NoteControl : UserControl
         {
             window.Left += e.HorizontalChange;
             window.Top += e.VerticalChange;
+            NoteChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
         Canvas.SetLeft(this, Canvas.GetLeft(this) + e.HorizontalChange);
         Canvas.SetTop(this, Canvas.GetTop(this) + e.VerticalChange);
+        NoteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
     {
         Width = Math.Max(MinWidth, Width + e.HorizontalChange);
         Height = Math.Max(MinHeight, Height + e.VerticalChange);
+        NoteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Editor_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        NoteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

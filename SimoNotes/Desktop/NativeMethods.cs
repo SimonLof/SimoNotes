@@ -13,6 +13,7 @@ internal static class NativeMethods
     internal const uint WmHotkey = 0x0312;
     internal const uint ModAlt = 0x0001;
     internal const uint ModControl = 0x0002;
+    internal const uint ModShift = 0x0004;
     internal const uint VkN = 0x4E;
 
     [DllImport("user32.dll", SetLastError = true)]

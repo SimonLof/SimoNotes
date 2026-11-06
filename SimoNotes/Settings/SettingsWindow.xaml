@@ -1,0 +1,91 @@
+<Window x:Class="SimoNotes.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="420"
+        Height="370"
+        MinWidth="420"
+        MinHeight="370"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock FontSize="20"
+                   FontWeight="SemiBold"
+                   Text="Settings" />
+
+        <GroupBox Grid.Row="1"
+                  Margin="0,14,0,12"
+                  Header="Keyboard shortcuts">
+            <Grid Margin="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock VerticalAlignment="Center"
+                           Text="New note" />
+                <Button x:Name="HotkeyButton"
+                        Grid.Column="1"
+                        MinWidth="130"
+                        Padding="12,6"
+                        Click="HotkeyButton_Click" />
+                <TextBlock x:Name="StatusText"
+                           Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Margin="0,8,0,0"
+                           Foreground="#FF9A3D2F"
+                           TextWrapping="Wrap" />
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="2"
+                  Header="Other settings">
+            <TextBlock Margin="12"
+                       Foreground="#FF777777"
+                       Text="Additional options can be added here."
+                       TextWrapping="Wrap" />
+        </GroupBox>
+
+        <Grid Grid.Row="3"
+              Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button MinWidth="110"
+                Padding="10,6"
+                HorizontalAlignment="Left"
+                Click="ResetSettings_Click"
+                Content="Reset settings" />
+            <Button Grid.Column="1"
+                MinWidth="125"
+                Padding="10,6"
+                HorizontalAlignment="Right"
+                Foreground="#FF9A3D2F"
+                Click="RemoveAllNotes_Click"
+                Content="Remove all notes" />
+        </Grid>
+
+        <Button Grid.Row="4"
+                MinWidth="80"
+                Margin="0,12,0,0"
+                Padding="12,6"
+                HorizontalAlignment="Right"
+                IsCancel="True"
+                Click="CloseButton_Click"
+                Content="Close" />
+    </Grid>
+</Window>
