@@ -1,0 +1,51 @@
+# SimoNotes: Remaining Work
+
+This checklist tracks the requirements from the original SimoNotes brief against the current `SimoNotes2` project.
+
+## Current Baseline
+
+- .NET 10 WPF application with no ordinary startup window.
+- A dedicated, per-pixel-transparent `HwndSource` desktop host, owned by Explorer's desktop window.
+- Explorer desktop discovery through `Progman`, `WorkerW`, and `SHELLDLL_DefView`, with a `Progman` fallback.
+- One editable sticky note with a draggable title area, close button, resizable dimensions, and an individual position.
+- `NoteManager` can create and remove note controls; closing a note does not shut down the application.
+- The current solution builds, and the desktop note has been visually verified on the development machine.
+
+## Immediate Application Features
+
+- [ ] Register the global `Ctrl+Alt+N` shortcut for the full application lifetime.
+- [ ] Handle `WM_HOTKEY` in the native host/message path and create a note through `NoteManager`.
+- [ ] Detect hotkey registration failure, such as a shortcut already owned by another application, and report it without crashing.
+- [ ] Add a notification-area icon and tray menu with **New note** and **Exit** commands.
+- [ ] Keep the application running when the last note is closed; exit only through the tray command or explicit application shutdown.
+- [ ] Verify the desktop host does not create an ordinary taskbar button and the tray icon is available while the app runs.
+
+## Desktop Integration Hardening
+
+- [ ] Verify note placement and visibility across supported Windows and Explorer configurations; `WorkerW` behavior is undocumented and varies.
+- [ ] Handle Explorer restarting or recreating desktop windows: rediscover the correct host and reattach or recreate the desktop source.
+- [ ] Handle display topology, resolution, and DPI changes; resize/reposition the host and keep notes at valid desktop coordinates.
+- [ ] Test desktop hit testing and Z-order with icons, application windows, Show Desktop, multiple Explorer windows, and multiple monitors.
+- [ ] Define and test graceful behavior when `Progman` or a usable `WorkerW` cannot be found.
+
+## Note Behavior and State
+
+- [ ] Add a user-accessible way to create notes in addition to the global shortcut, such as the tray menu.
+- [ ] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
+- [ ] Persist and restore each note's text, position, dimensions, and settings across application restarts.
+- [ ] Add note color selection and store the selected color with that note.
+- [ ] Add text formatting and note-specific settings as required.
+- [ ] Keep note coordinates and sizes valid when monitors are added, removed, or rearranged.
+
+## Independent Display Modes
+
+- [ ] Add an always-on-top mode per note.
+- [ ] Implement always-on-top notes independently from the shared desktop-layer host, so changing one note's mode does not change the Z-order of other notes.
+- [ ] Preserve each note's content and state when switching between desktop-layer and always-on-top modes.
+
+## Verification and Delivery
+
+- [ ] Add focused tests for note creation/removal, state persistence, and mode changes where practical.
+- [ ] Add a repeatable Windows runtime verification checklist for hotkey registration, tray lifecycle, desktop visibility, and Explorer recovery.
+- [ ] Confirm startup, shutdown, and native-resource cleanup work without leaving HWNDs, hotkeys, or tray icons behind.
+- [ ] Document supported Windows assumptions and the limitations of Explorer's undocumented desktop-window hierarchy.
