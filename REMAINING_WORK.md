@@ -57,3 +57,8 @@ This checklist tracks the requirements from the original SimoNotes brief against
 - [ ] Add a repeatable Windows runtime verification checklist for hotkey registration, tray lifecycle, desktop visibility, and Explorer recovery.
 - [ ] Confirm startup, shutdown, and native-resource cleanup work without leaving HWNDs, hotkeys, or tray icons behind.
 - [ ] Document supported Windows assumptions and the limitations of Explorer's undocumented desktop-window hierarchy.
+
+## Performance
+
+- [ ] Investigate possibility to reduce memory footprint.
+- Further improvements to responsiveness, flickers, UI updates. (Constant work)
