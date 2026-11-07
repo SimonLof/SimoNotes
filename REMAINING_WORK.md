@@ -25,6 +25,7 @@ This checklist tracks the requirements from the original SimoNotes brief against
 - [ ] Address global hotkey conflicts: warn about common application shortcuts and prevent bindings such as `Ctrl+N` from triggering SimoNotes instead of the foreground app's command, such as VS Code's New Window action.
 - [ ] Add first-run install-like behavior: when the app has never been started on the machine, ask whether to run it from its current location as a standalone executable or install it. Save the selected option in the program's settings so the standalone choice suppresses this prompt on later launches. The install flow should move the executable to a user-selected install path, add that path to `PATH`, and create the Windows registrations needed for the app to behave like an installed program. Add a `--uninstall` run option if needed; it should remove the registrations and delete the installed executable.
 - [ ] Expand the note color palette and allow users to choose custom colors.
+- [ ] Update opacity functionality to align with the new `NoteModel` architecture.
 - [ ] Load custom note style definitions from a per-user JSON config, such as `~/.simonotes/config.json`.
 
 ## Desktop Integration Hardening
