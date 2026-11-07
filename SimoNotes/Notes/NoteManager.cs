@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace SimoNotes.Notes;
 
@@ -31,6 +32,8 @@ internal sealed class NoteManager : IDisposable
         var note = CreateNoteControl(model);
         var window = new Window
         {
+            AllowsTransparency = true,
+            Background = System.Windows.Media.Brushes.Transparent,
             Content = note,
             Left = model.Left,
             Top = model.Top,
@@ -64,7 +67,8 @@ internal sealed class NoteManager : IDisposable
                 Top = double.IsFinite(top) ? top : 0,
                 Width = note.Width,
                 Height = note.Height,
-                Text = note.NoteText
+                Text = note.NoteText,
+                Appearance = note.Appearance
             };
         }).ToList();
     }
@@ -117,6 +121,7 @@ internal sealed class NoteManager : IDisposable
             Height = model.Height,
             NoteText = model.Text
         };
+        note.SetAppearance(model.Appearance, notify: false);
 
         note.CloseRequested += OnCloseRequested;
         note.NoteChanged += OnNoteChanged;

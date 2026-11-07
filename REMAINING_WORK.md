@@ -20,6 +20,11 @@ This checklist tracks the requirements from the original SimoNotes brief against
 - [x] Keep the application running when the last note is closed; exit only through the tray command or explicit application shutdown.
 - [x] Verify the desktop host does not create an ordinary taskbar button and the tray icon is available while the app runs.
 
+## Future Improvements
+
+- [ ] Address global hotkey conflicts: warn about common application shortcuts and prevent bindings such as `Ctrl+N` from triggering SimoNotes instead of the foreground app's command, such as VS Code's New Window action.
+- [ ] Expand the note color palette and allow users to choose custom colors.
+
 ## Desktop Integration Hardening
 
 - [ ] Verify note placement and visibility across supported Windows and Explorer configurations; `WorkerW` behavior is undocumented and varies.
@@ -32,8 +37,8 @@ This checklist tracks the requirements from the original SimoNotes brief against
 
 - [x] Add a user-accessible way to create notes in addition to the global shortcut, such as the tray menu.
 - [x] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
-- [x] Persist and restore each note's text, position, and dimensions across application restarts.
-- [ ] Add note color selection and store the selected color with that note.
+- [x] Persist and restore each note's text, position, dimensions, color, and opacity across application restarts.
+- [x] Add per-note color and opacity selection, with configurable color and opacity defaults for new notes.
 - [ ] Add text formatting and note-specific settings as required.
 - [ ] Keep note coordinates and sizes valid when monitors are added, removed, or rearranged.
 

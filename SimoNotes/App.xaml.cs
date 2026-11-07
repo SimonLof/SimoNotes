@@ -27,7 +27,9 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private readonly HotkeyBindingStore _hotkeyBindingStore = new();
     private readonly NoteStateStore _noteStateStore = new();
+    private readonly NoteAppearanceStore _noteAppearanceStore = new();
     private readonly DispatcherTimer _noteSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private NoteAppearance _newNoteAppearance = NoteAppearance.Default;
     private int _createdNoteCount;
     private bool _noteSaveErrorShown;
 
@@ -37,6 +39,7 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         _desktopHost = new DesktopHost(_hotkeyBindingStore.Load());
+        _newNoteAppearance = _noteAppearanceStore.Load();
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
         _noteManager = new NoteManager(_desktopHost.NoteSurface);
         _noteManager.NotesChanged += OnNotesChanged;
@@ -126,13 +129,15 @@ public partial class App : Application
             return;
         }
 
-        var settingsWindow = new SettingsWindow(_desktopHost.CurrentHotkey);
+        var settingsWindow = new SettingsWindow(_desktopHost.CurrentHotkey, _newNoteAppearance);
         settingsWindow.HotkeyChangeRequested += OnHotkeyChangeRequested;
+        settingsWindow.NewNoteAppearanceChangeRequested += OnNewNoteAppearanceChangeRequested;
         settingsWindow.ResetSettingsRequested += OnResetSettingsRequested;
         settingsWindow.RemoveAllNotesRequested += OnRemoveAllNotesRequested;
         settingsWindow.Closed += (_, _) =>
         {
             settingsWindow.HotkeyChangeRequested -= OnHotkeyChangeRequested;
+            settingsWindow.NewNoteAppearanceChangeRequested -= OnNewNoteAppearanceChangeRequested;
             settingsWindow.ResetSettingsRequested -= OnResetSettingsRequested;
             settingsWindow.RemoveAllNotesRequested -= OnRemoveAllNotesRequested;
             _settingsWindow = null;
@@ -150,6 +155,25 @@ public partial class App : Application
     private void OnResetSettingsRequested()
     {
         ApplyHotkey(HotkeyBinding.Default);
+        OnNewNoteAppearanceChangeRequested(NoteAppearance.Default);
+        _settingsWindow?.SetNewNoteAppearance(NoteAppearance.Default);
+    }
+
+    private void OnNewNoteAppearanceChangeRequested(NoteAppearance appearance)
+    {
+        _newNoteAppearance = appearance;
+        try
+        {
+            _noteAppearanceStore.Save(appearance);
+        }
+        catch (IOException)
+        {
+            _settingsWindow?.ShowSaveError();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _settingsWindow?.ShowSaveError();
+        }
     }
 
     private void ApplyHotkey(HotkeyBinding hotkey)
@@ -250,7 +274,8 @@ public partial class App : Application
             Top = position,
             Width = 300,
             Height = 210,
-            Text = string.Empty
+            Text = string.Empty,
+            Appearance = _newNoteAppearance
         });
     }
 }

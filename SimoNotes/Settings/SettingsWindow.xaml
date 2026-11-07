@@ -3,14 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Width="420"
-        Height="370"
+        Height="500"
         MinWidth="420"
-        MinHeight="370"
+        MinHeight="500"
         ResizeMode="NoResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -52,6 +53,40 @@
         </GroupBox>
 
         <GroupBox Grid.Row="2"
+                  Margin="0,0,0,12"
+                  Header="New note defaults">
+            <StackPanel Margin="12">
+                <TextBlock Margin="0,0,0,6"
+                           FontWeight="SemiBold"
+                           Text="Color" />
+                <UniformGrid Columns="5"
+                             HorizontalAlignment="Left">
+                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFF4B942" Click="DefaultColorSwatch_Click" ToolTip="Yellow"><Border Width="34" Height="24" Background="#FFF4B942" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
+                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFF3A6A6" Click="DefaultColorSwatch_Click" ToolTip="Rose"><Border Width="34" Height="24" Background="#FFF3A6A6" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
+                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFA8D5BA" Click="DefaultColorSwatch_Click" ToolTip="Mint"><Border Width="34" Height="24" Background="#FFA8D5BA" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
+                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFA7D8F0" Click="DefaultColorSwatch_Click" ToolTip="Sky"><Border Width="34" Height="24" Background="#FFA7D8F0" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
+                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFC5B4E2" Click="DefaultColorSwatch_Click" ToolTip="Lilac"><Border Width="34" Height="24" Background="#FFC5B4E2" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
+                </UniformGrid>
+                <DockPanel Margin="0,12,0,0">
+                    <TextBlock VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Text="Opacity" />
+                    <TextBlock x:Name="DefaultOpacityValueText"
+                               Margin="8,0,0,0"
+                               HorizontalAlignment="Right"
+                               DockPanel.Dock="Right"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+                <Slider x:Name="DefaultOpacitySlider"
+                        Minimum="0.25"
+                        Maximum="1"
+                        TickFrequency="0.01"
+                        IsSnapToTickEnabled="True"
+                        ValueChanged="DefaultOpacitySlider_ValueChanged" />
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Grid.Row="3"
                   Header="Other settings">
             <TextBlock Margin="12"
                        Foreground="#FF777777"
@@ -59,7 +94,7 @@
                        TextWrapping="Wrap" />
         </GroupBox>
 
-        <Grid Grid.Row="3"
+        <Grid Grid.Row="4"
               Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -79,7 +114,7 @@
                 Content="Remove all notes" />
         </Grid>
 
-        <Button Grid.Row="4"
+        <Button Grid.Row="5"
                 MinWidth="80"
                 Margin="0,12,0,0"
                 Padding="12,6"

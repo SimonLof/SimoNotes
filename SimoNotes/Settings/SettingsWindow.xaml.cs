@@ -1,22 +1,31 @@
 using System.Windows;
 using System.Windows.Input;
+using SimoNotes.Notes;
+using WpfButton = System.Windows.Controls.Button;
 
 namespace SimoNotes.Settings;
 
 public partial class SettingsWindow : Window
 {
     private HotkeyBinding _currentHotkey;
+    private NoteAppearance _newNoteAppearance;
     private bool _isCapturingHotkey;
+    private bool _updatingDefaultOpacity;
+    private bool _isInitialized;
 
-    internal SettingsWindow(HotkeyBinding currentHotkey)
+    internal SettingsWindow(HotkeyBinding currentHotkey, NoteAppearance newNoteAppearance)
     {
         InitializeComponent();
         _currentHotkey = currentHotkey;
+        _newNoteAppearance = newNoteAppearance;
         HotkeyButton.Content = currentHotkey.DisplayName;
+        UpdateDefaultOpacityDisplay();
+        _isInitialized = true;
         PreviewKeyDown += OnPreviewKeyDown;
     }
 
     internal event Action<HotkeyBinding>? HotkeyChangeRequested;
+    internal event Action<NoteAppearance>? NewNoteAppearanceChangeRequested;
     internal event Action? ResetSettingsRequested;
     internal event Action? RemoveAllNotesRequested;
 
@@ -25,6 +34,12 @@ public partial class SettingsWindow : Window
         _currentHotkey = hotkey;
         HotkeyButton.Content = hotkey.DisplayName;
         StatusText.Text = string.Empty;
+    }
+
+    internal void SetNewNoteAppearance(NoteAppearance appearance)
+    {
+        _newNoteAppearance = appearance;
+        UpdateDefaultOpacityDisplay();
     }
 
     internal void ShowRegistrationError(int error)
@@ -49,6 +64,37 @@ public partial class SettingsWindow : Window
     private void ResetSettings_Click(object sender, RoutedEventArgs e)
     {
         ResetSettingsRequested?.Invoke();
+    }
+
+    private void DefaultColorSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is WpfButton { Tag: string color })
+        {
+            SetDefaultAppearance(_newNoteAppearance with { Color = color });
+        }
+    }
+
+    private void DefaultOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitialized && !_updatingDefaultOpacity)
+        {
+            SetDefaultAppearance(_newNoteAppearance with { Opacity = e.NewValue });
+        }
+    }
+
+    private void SetDefaultAppearance(NoteAppearance appearance)
+    {
+        _newNoteAppearance = appearance;
+        UpdateDefaultOpacityDisplay();
+        NewNoteAppearanceChangeRequested?.Invoke(appearance);
+    }
+
+    private void UpdateDefaultOpacityDisplay()
+    {
+        _updatingDefaultOpacity = true;
+        DefaultOpacitySlider.Value = _newNoteAppearance.Opacity;
+        DefaultOpacityValueText.Text = $"{Math.Round(_newNoteAppearance.Opacity * 100)}%";
+        _updatingDefaultOpacity = false;
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
