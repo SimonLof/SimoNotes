@@ -411,7 +411,12 @@ internal sealed class NoteManager : IDisposable
         }
 
         _surface.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
-            OnFloatingNoteDeactivated(note.Window, EventArgs.Empty)));
+        {
+            if (!note.Window.IsActive)
+            {
+                OnFloatingNoteDeactivated(note.Window, EventArgs.Empty);
+            }
+        }));
     }
 
     private void ScheduleTemporaryLayerReconciliation()
