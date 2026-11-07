@@ -30,6 +30,7 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
+    private bool _noteShutdownSaveAttempted;
     private readonly HotkeyBindingStore _hotkeyBindingStore = new();
     private readonly NoteStateStore _noteStateStore = new();
     private readonly NoteAppearanceStore _noteAppearanceStore = new();
@@ -116,7 +117,10 @@ public partial class App : Application
         if (_noteManager is not null)
         {
             _noteManager.NotesChanged -= OnNotesChanged;
-            SaveNotesNow();
+            if (!_noteShutdownSaveAttempted)
+            {
+                SaveNotesNow();
+            }
         }
 
         if(_desktopHost is not null)
@@ -145,7 +149,7 @@ public partial class App : Application
         _trayMenu.Items.Add("New note", null, (_, _) => OnNewNoteRequested(this, EventArgs.Empty));
         _trayMenu.Items.Add("Bring all notes to front", null, (_, _) => OnBringAllNotesToFrontRequested(this, EventArgs.Empty));
         _trayMenu.Items.Add("Settings", null, (_, _) => ShowSettings());
-        _trayMenu.Items.Add("Exit", null, (_, _) => Shutdown());
+        _trayMenu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
         using var iconStream = typeof(App).Assembly.GetManifestResourceStream("SimoNotes.Assets.SimoNotes.ico")
             ?? throw new InvalidOperationException("The tray icon resource is missing.");
@@ -175,7 +179,8 @@ public partial class App : Application
         var settingsWindow = new SettingsWindow(
             _desktopHost.CurrentHotkey,
             _desktopHost.CurrentBringAllNotesHotkey,
-            _newNoteAppearance);
+            _newNoteAppearance,
+            _noteManager?.NoteCount ?? 0);
         settingsWindow.HotkeyChangeRequested += OnHotkeyChangeRequested;
         settingsWindow.BringAllNotesHotkeyChangeRequested += OnBringAllNotesHotkeyChangeRequested;
         settingsWindow.NewNoteAppearanceChangeRequested += OnNewNoteAppearanceChangeRequested;
@@ -294,8 +299,17 @@ public partial class App : Application
         SaveNotesNow();
     }
 
+    private void ExitApplication()
+    {
+        _noteSaveTimer.Stop();
+        _noteShutdownSaveAttempted = true;
+        SaveNotesNow();
+        Shutdown();
+    }
+
     private void OnNotesChanged(object? sender, EventArgs e)
     {
+        _settingsWindow?.SetNoteCount(_noteManager?.NoteCount ?? 0);
         _noteSaveTimer.Stop();
         _noteSaveTimer.Start();
     }

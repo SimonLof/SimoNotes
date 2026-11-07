@@ -59,6 +59,8 @@ internal sealed class NoteManager : IDisposable
 
     public event EventHandler? NotesChanged;
 
+    public int NoteCount => _notes.Count;
+
     public WpfPoint ScreenToSurface(WpfPoint screenPoint) => _surface.PointFromScreen(screenPoint);
 
     public void BringAllNotesToFront()

@@ -20,7 +20,8 @@ public partial class SettingsWindow : Window
     internal SettingsWindow(
         HotkeyBinding currentHotkey,
         HotkeyBinding currentBringAllNotesHotkey,
-        NoteAppearance newNoteAppearance)
+        NoteAppearance newNoteAppearance,
+        int noteCount)
     {
         InitializeComponent();
         DefaultStyleSelector.ItemsSource = NoteStyleCatalog.All;
@@ -29,6 +30,7 @@ public partial class SettingsWindow : Window
         _newNoteAppearance = newNoteAppearance;
         NewNoteHotkeyButton.Content = currentHotkey.DisplayName;
         BringAllNotesHotkeyButton.Content = currentBringAllNotesHotkey.DisplayName;
+        SetNoteCount(noteCount);
         UpdateNewNoteAppearanceControls();
         _isInitialized = true;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -58,6 +60,11 @@ public partial class SettingsWindow : Window
     {
         _newNoteAppearance = appearance;
         UpdateNewNoteAppearanceControls();
+    }
+
+    internal void SetNoteCount(int noteCount)
+    {
+           NoteCountText.Text = $"Notes: {noteCount}";
     }
 
     internal void ShowRegistrationError(int error, bool bringAllNotesHotkey = false)

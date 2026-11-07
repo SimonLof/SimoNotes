@@ -126,21 +126,27 @@
         <Grid Grid.Row="5"
               Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Button MinWidth="110"
-                Padding="10,6"
-                HorizontalAlignment="Left"
-                Click="ResetSettings_Click"
-                Content="Reset settings" />
-            <Button Grid.Column="1"
-                MinWidth="125"
-                Padding="10,6"
-                HorizontalAlignment="Right"
-                Foreground="#FF9A3D2F"
-                Click="RemoveAllNotes_Click"
-                Content="Remove all notes" />
+                    Padding="10,6"
+                    HorizontalAlignment="Left"
+                    Click="ResetSettings_Click"
+                    Content="Reset settings" />
+            <TextBlock x:Name="NoteCountText"
+                       Grid.Column="1"
+                       Margin="0,0,12,0"
+                       VerticalAlignment="Center"
+                       Foreground="#FF777777" />
+            <Button Grid.Column="2"
+                    MinWidth="125"
+                    Padding="10,6"
+                    HorizontalAlignment="Right"
+                    Foreground="#FF9A3D2F"
+                    Click="RemoveAllNotes_Click"
+                    Content="Remove all notes" />
         </Grid>
 
         <Button Grid.Row="6"
