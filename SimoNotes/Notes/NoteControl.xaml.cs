@@ -52,7 +52,7 @@ public partial class NoteControl : UserControl
     }
 
     public event EventHandler? CloseRequested;
-    internal event Action<NoteControl, int?>? ForegroundRequested;
+    internal event Action<NoteControl, int?, int?>? ForegroundRequested;
     internal event Action<NoteControl>? AppearanceRequested;
     internal event Action<NoteControl>? AppearancePopupClosed;
     internal event Func<NoteControl, Window?>? DragRequested;
@@ -149,6 +149,14 @@ public partial class NoteControl : UserControl
         NoteTitle.SelectionStart = Math.Clamp(caretIndex, 0, NoteTitle.Text.Length);
         NoteTitle.SelectionLength = 0;
         NoteTitle.CaretIndex = NoteTitle.SelectionStart;
+    }
+
+    internal void FocusEditorAt(int caretIndex)
+    {
+        Editor.Focus();
+        Editor.SelectionStart = Math.Clamp(caretIndex, 0, Editor.Text.Length);
+        Editor.SelectionLength = 0;
+        Editor.CaretIndex = Editor.SelectionStart;
     }
 
     internal void ToggleAppearancePopup() => AppearancePopup.IsOpen = !AppearancePopup.IsOpen;
@@ -413,7 +421,10 @@ public partial class NoteControl : UserControl
             int? titleCaretIndex = NoteTitle.IsMouseOver
                 ? NoteTitle.GetCharacterIndexFromPoint(e.GetPosition(NoteTitle), snapToText: true)
                 : null;
-            ForegroundRequested?.Invoke(this, titleCaretIndex);
+            int? editorCaretIndex = Editor.IsMouseOver
+                ? Editor.GetCharacterIndexFromPoint(e.GetPosition(Editor), snapToText: true)
+                : null;
+            ForegroundRequested?.Invoke(this, titleCaretIndex, editorCaretIndex);
         }
     }
 

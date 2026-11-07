@@ -360,7 +360,7 @@ internal sealed class NoteManager : IDisposable
         }
     }
 
-    private void OnNoteForegroundRequested(NoteControl view, int? titleCaretIndex)
+    private void OnNoteForegroundRequested(NoteControl view, int? titleCaretIndex, int? editorCaretIndex)
     {
         if (!_managedByView.TryGetValue(view, out var note) ||
             note.ActiveView != view)
@@ -383,7 +383,8 @@ internal sealed class NoteManager : IDisposable
                     moveCaretToEnd: false,
                     focusEditor: false,
                     keepDesktopViewVisible: true,
-                    focusTitleAt: titleCaretIndex);
+                    focusTitleAt: titleCaretIndex,
+                    focusEditorAt: editorCaretIndex);
             }
         }));
     }
@@ -548,7 +549,8 @@ internal sealed class NoteManager : IDisposable
         bool moveCaretToEnd,
         bool focusEditor = true,
         bool keepDesktopViewVisible = false,
-        int? focusTitleAt = null)
+        int? focusTitleAt = null,
+        int? focusEditorAt = null)
     {
         if (note.IsFloating)
         {
@@ -568,7 +570,7 @@ internal sealed class NoteManager : IDisposable
         note.Window.UpdateLayout();
         PositionWindow(windowHandle, screenPosition);
         note.Window.Activate();
-        SetActiveView(note, note.FloatingView, focusEditor, moveCaretToEnd, keepDesktopViewVisible, focusTitleAt);
+        SetActiveView(note, note.FloatingView, focusEditor, moveCaretToEnd, keepDesktopViewVisible, focusTitleAt, focusEditorAt);
         OnNotesChanged();
     }
 
@@ -596,7 +598,8 @@ internal sealed class NoteManager : IDisposable
         bool focusEditor,
         bool moveCaretToEnd,
         bool keepPreviousVisible = false,
-        int? focusTitleAt = null)
+        int? focusTitleAt = null,
+        int? focusEditorAt = null)
     {
         var previousView = note.ActiveView;
         if (previousView == nextView)
@@ -636,6 +639,10 @@ internal sealed class NoteManager : IDisposable
         else if (focusTitleAt is int caretIndex)
         {
             nextView.FocusTitleAt(caretIndex);
+        }
+        else if (focusEditorAt is int editorCaretIndex)
+        {
+            nextView.FocusEditorAt(editorCaretIndex);
         }
 
         if (!keepPreviousVisible)
