@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.Security.Principal;
+using System.Threading;
 using DrawingIcon = System.Drawing.Icon;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -26,6 +28,8 @@ public partial class App : Application
     private Forms.ContextMenuStrip? _trayMenu;
     private DrawingIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
+    private Mutex? _singleInstanceMutex;
+    private bool _ownsSingleInstanceMutex;
     private readonly HotkeyBindingStore _hotkeyBindingStore = new();
     private readonly NoteStateStore _noteStateStore = new();
     private readonly NoteAppearanceStore _noteAppearanceStore = new();
@@ -39,6 +43,22 @@ public partial class App : Application
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        var userSid = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
+        _singleInstanceMutex = new Mutex(true, $"Local\\SimoNotes-{userSid}", out var createdNew);
+        if (!createdNew)
+        {
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+            MessageBox.Show(
+                "SimoNotes is already running.",
+                "SimoNotes",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
+        _ownsSingleInstanceMutex = true;
         _desktopHost = new DesktopHost(_hotkeyBindingStore.Load());
         _newNoteAppearance = _noteAppearanceStore.Load();
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
@@ -100,6 +120,12 @@ public partial class App : Application
         _notifyIcon?.Dispose();
         _trayMenu?.Dispose();
         _trayIcon?.Dispose();
+        if (_ownsSingleInstanceMutex)
+        {
+            _singleInstanceMutex?.ReleaseMutex();
+        }
+
+        _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }
 
@@ -107,10 +133,12 @@ public partial class App : Application
     {
         _trayMenu = new Forms.ContextMenuStrip();
         _trayMenu.Items.Add("New note", null, (_, _) => OnNewNoteRequested(this, EventArgs.Empty));
-        _trayMenu.Items.Add("Exit", null, (_, _) => Shutdown());
         _trayMenu.Items.Add("Settings", null, (_, _) => ShowSettings());
+        _trayMenu.Items.Add("Exit", null, (_, _) => Shutdown());
 
-        _trayIcon = new DrawingIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "SimoNotes.ico"));
+        using var iconStream = typeof(App).Assembly.GetManifestResourceStream("SimoNotes.Assets.SimoNotes.ico")
+            ?? throw new InvalidOperationException("The tray icon resource is missing.");
+        _trayIcon = new DrawingIcon(iconStream);
         _notifyIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _trayMenu,

@@ -32,6 +32,7 @@ public partial class NoteControl : UserControl
         _dragTimer.Tick += DragTimer_Tick;
         StyleSelector.ItemsSource = NoteStyleCatalog.All;
         Editor.PreviewMouseDown += Editor_PreviewMouseDown;
+        NoteTitle.PreviewMouseDown += Editor_PreviewMouseDown;
         SetAppearance(_appearance, notify: false);
         _isInitialized = true;
     }
@@ -54,6 +55,12 @@ public partial class NoteControl : UserControl
     {
         get => Editor.Text;
         set => Editor.Text = value;
+    }
+
+    public string Title
+    {
+        get => NoteTitle.Text;
+        set => NoteTitle.Text = value;
     }
 
     public void FocusEditor(bool moveCaretToEnd = true)
@@ -215,6 +222,11 @@ public partial class NoteControl : UserControl
     }
 
     private void Editor_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        NoteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Title_TextChanged(object sender, TextChangedEventArgs e)
     {
         NoteChanged?.Invoke(this, EventArgs.Empty);
     }

@@ -62,6 +62,7 @@ internal sealed class NoteManager : IDisposable
                 Top = double.IsFinite(surfacePosition.Y) ? surfacePosition.Y : 0,
                 Width = note.Width,
                 Height = note.Height,
+                Title = note.Title,
                 Text = note.NoteText,
                 Appearance = note.Appearance
             };
@@ -174,6 +175,7 @@ internal sealed class NoteManager : IDisposable
         {
             Width = model.Width,
             Height = model.Height,
+            Title = model.Title,
             NoteText = model.Text
         };
         note.SetAppearance(model.Appearance, notify: false);
