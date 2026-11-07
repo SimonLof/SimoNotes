@@ -24,6 +24,7 @@ internal sealed record NoteStyleDefinition(
     string BackgroundColor,
     string? BorderColor,
     string ForegroundColor,
+    string CaretColor,
     string FontFamilyName,
     string? FontFamilyResource,
     double FontSize,
@@ -38,6 +39,9 @@ internal sealed record NoteStyleDefinition(
 
     public string GetForeground(string selectedColor) =>
         ColorTarget == NoteStyleColorTarget.Foreground ? selectedColor : ForegroundColor;
+
+    public string GetCaretColor(string selectedColor) =>
+        ColorTarget == NoteStyleColorTarget.Foreground ? selectedColor : CaretColor;
 
     public WpfFontFamily CreateFontFamily() => FontFamilyResource is null
         ? new WpfFontFamily(FontFamilyName)
@@ -75,6 +79,7 @@ internal static class NoteStyleCatalog
         "#FFF4B942",
         null,
         "#FF30291F",
+        "#FF30291F",
         "Segoe UI",
         null,
         15,
@@ -88,6 +93,7 @@ internal static class NoteStyleCatalog
         "#FF0D120F",
         null,
         "#FF65FF80",
+        "#FFFFFFFF",
         "Press Start 2P",
         "./Assets/#Press Start 2P",
         9,

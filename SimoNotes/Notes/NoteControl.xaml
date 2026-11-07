@@ -86,8 +86,21 @@
                      FontSize="15"
                      Foreground="#FF30291F"
                      TextChanged="Editor_TextChanged"
+                     SelectionChanged="Editor_SelectionChanged"
+                     GotKeyboardFocus="Editor_GotKeyboardFocus"
+                     LostKeyboardFocus="Editor_LostKeyboardFocus"
                      TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" />
+            <Canvas x:Name="TerminalCaretLayer"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="2"
+                    Margin="10,4,10,12"
+                    ClipToBounds="True"
+                    IsHitTestVisible="False">
+                <Rectangle x:Name="TerminalCaret"
+                           Height="2"
+                           Visibility="Collapsed" />
+            </Canvas>
             <Thumb x:Name="ResizeThumb"
                    Grid.Row="1"
                    Grid.Column="1"
@@ -120,6 +133,7 @@
 
             <Popup x:Name="AppearancePopup"
                    AllowsTransparency="True"
+                     Closed="AppearancePopup_Closed"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=AppearanceButton}"
                    StaysOpen="False">

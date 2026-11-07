@@ -195,6 +195,8 @@ internal sealed class NoteManager : IDisposable
     {
         view.CloseRequested += OnCloseRequested;
         view.ForegroundRequested += OnNoteForegroundRequested;
+        view.AppearanceRequested += OnNoteAppearanceRequested;
+        view.AppearancePopupClosed += OnNoteAppearancePopupClosed;
         view.DragRequested += OnNoteDragRequested;
         view.DragCompleted += OnNoteDragCompleted;
         view.ResizeStarted += OnNoteResizeStarted;
@@ -206,6 +208,8 @@ internal sealed class NoteManager : IDisposable
         view.CancelDrag();
         view.CloseRequested -= OnCloseRequested;
         view.ForegroundRequested -= OnNoteForegroundRequested;
+        view.AppearanceRequested -= OnNoteAppearanceRequested;
+        view.AppearancePopupClosed -= OnNoteAppearancePopupClosed;
         view.DragRequested -= OnNoteDragRequested;
         view.DragCompleted -= OnNoteDragCompleted;
         view.ResizeStarted -= OnNoteResizeStarted;
@@ -259,6 +263,11 @@ internal sealed class NoteManager : IDisposable
 
         var note = _notes.FirstOrDefault(candidate => candidate.Window == window && candidate.IsFloating);
         if (note is null)
+        {
+            return;
+        }
+
+        if (note.ActiveView.IsAppearancePopupOpen)
         {
             return;
         }
@@ -377,6 +386,32 @@ internal sealed class NoteManager : IDisposable
                     focusTitleAt: titleCaretIndex);
             }
         }));
+    }
+
+    private void OnNoteAppearanceRequested(NoteControl view)
+    {
+        if (!_managedByView.TryGetValue(view, out var note) || note.ActiveView != view)
+        {
+            return;
+        }
+
+        if (!note.IsFloating)
+        {
+            MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
+        }
+
+        note.ActiveView.ToggleAppearancePopup();
+    }
+
+    private void OnNoteAppearancePopupClosed(NoteControl view)
+    {
+        if (!_managedByView.TryGetValue(view, out var note))
+        {
+            return;
+        }
+
+        _surface.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+            OnFloatingNoteDeactivated(note.Window, EventArgs.Empty)));
     }
 
     private void ScheduleTemporaryLayerReconciliation()

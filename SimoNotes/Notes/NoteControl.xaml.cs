@@ -25,6 +25,10 @@ public partial class NoteControl : UserControl
     {
         Interval = TimeSpan.FromMilliseconds(16)
     };
+    private readonly DispatcherTimer _terminalCaretTimer = new(DispatcherPriority.Input)
+    {
+        Interval = TimeSpan.FromMilliseconds(500)
+    };
     private Window? _dragWindow;
     private IntPtr _dragWindowHandle;
     private WpfPoint _dragStartPointer;
@@ -34,6 +38,13 @@ public partial class NoteControl : UserControl
     {
         InitializeComponent();
         _dragTimer.Tick += DragTimer_Tick;
+        _terminalCaretTimer.Tick += (_, _) =>
+        {
+            TerminalCaret.Visibility = TerminalCaret.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        };
+        Editor.LayoutUpdated += (_, _) => UpdateTerminalCaret();
         StyleSelector.ItemsSource = NoteStyleCatalog.All;
         PreviewMouseDown += NoteControl_PreviewMouseDown;
         SetAppearance(_appearance, notify: false);
@@ -42,12 +53,15 @@ public partial class NoteControl : UserControl
 
     public event EventHandler? CloseRequested;
     internal event Action<NoteControl, int?>? ForegroundRequested;
+    internal event Action<NoteControl>? AppearanceRequested;
+    internal event Action<NoteControl>? AppearancePopupClosed;
     internal event Func<NoteControl, Window?>? DragRequested;
     internal event Action<NoteControl>? DragCompleted;
     internal event Action<NoteControl>? ResizeStarted;
     internal event Action<NoteControl>? ResizeCompleted;
     internal NoteAppearance Appearance => _appearance;
     internal bool AlwaysOnTop => _alwaysOnTop;
+    internal bool IsAppearancePopupOpen => AppearancePopup.IsOpen;
     internal NoteState? State { get; private set; }
     internal bool HasKeyboardFocusWithin => IsKeyboardFocusWithin;
 
@@ -137,6 +151,8 @@ public partial class NoteControl : UserControl
         NoteTitle.CaretIndex = NoteTitle.SelectionStart;
     }
 
+    internal void ToggleAppearancePopup() => AppearancePopup.IsOpen = !AppearancePopup.IsOpen;
+
     internal void SetAlwaysOnTop(bool alwaysOnTop, bool notify = true)
     {
         if (notify && _isInteractive && State is not null)
@@ -189,8 +205,13 @@ public partial class NoteControl : UserControl
         NoteTitle.FontSize = style.FontSize;
         CloseButton.Foreground = new SolidColorBrush(foregroundColor);
         Editor.Foreground = new SolidColorBrush(foregroundColor);
+        Editor.CaretBrush = new SolidColorBrush(style.Id == NoteStyleCatalog.TerminalId
+            ? System.Windows.Media.Colors.Transparent
+            : ParseColor(appearance.CaretColor!));
         Editor.FontFamily = fontFamily;
         Editor.FontSize = style.FontSize;
+        TerminalCaret.Fill = new SolidColorBrush(ParseColor(appearance.CaretColor!));
+        TerminalCaret.Width = Math.Max(2, style.FontSize * 0.62);
 
         _updatingAppearance = true;
         StyleSelector.SelectedValue = style.Id;
@@ -199,6 +220,7 @@ public partial class NoteControl : UserControl
         OpacitySlider.Value = appearance.Opacity;
         OpacityValueText.Text = $"{Math.Round(appearance.Opacity * 100)}%";
         _updatingAppearance = false;
+        UpdateTerminalCaret();
 
     }
 
@@ -397,6 +419,7 @@ public partial class NoteControl : UserControl
 
     private void Editor_TextChanged(object sender, TextChangedEventArgs e)
     {
+        UpdateTerminalCaret();
         if (_applyingState || !_isInteractive)
         {
             return;
@@ -407,6 +430,49 @@ public partial class NoteControl : UserControl
             State.Text = Editor.Text;
         }
 
+    }
+
+    private void Editor_SelectionChanged(object sender, RoutedEventArgs e) => UpdateTerminalCaret(resetBlink: true);
+
+    private void Editor_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => UpdateTerminalCaret(resetBlink: true);
+
+    private void Editor_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => UpdateTerminalCaret();
+
+    private void UpdateTerminalCaret(bool resetBlink = false)
+    {
+        if (TerminalCaret is null || Editor is null)
+        {
+            return;
+        }
+
+        if (_appearance.NormalizedStyleId != NoteStyleCatalog.TerminalId ||
+            !Editor.IsKeyboardFocused || Editor.SelectionLength != 0)
+        {
+            TerminalCaret.Visibility = Visibility.Collapsed;
+            _terminalCaretTimer.Stop();
+            return;
+        }
+
+        var editorCaretBounds = Editor.GetRectFromCharacterIndex(Editor.CaretIndex);
+        if (editorCaretBounds.IsEmpty)
+        {
+            TerminalCaret.Visibility = Visibility.Collapsed;
+            _terminalCaretTimer.Stop();
+            return;
+        }
+
+        var caretPosition = Editor.TranslatePoint(editorCaretBounds.TopLeft, TerminalCaretLayer);
+        Canvas.SetLeft(TerminalCaret, caretPosition.X);
+        Canvas.SetTop(TerminalCaret, caretPosition.Y + editorCaretBounds.Height - TerminalCaret.Height);
+        if (resetBlink || !_terminalCaretTimer.IsEnabled)
+        {
+            TerminalCaret.Visibility = Visibility.Visible;
+        }
+
+        if (!_terminalCaretTimer.IsEnabled)
+        {
+            _terminalCaretTimer.Start();
+        }
     }
 
     private void Title_TextChanged(object sender, TextChangedEventArgs e)
@@ -427,9 +493,11 @@ public partial class NoteControl : UserControl
     {
         if (_isInteractive)
         {
-            AppearancePopup.IsOpen = !AppearancePopup.IsOpen;
+            AppearanceRequested?.Invoke(this);
         }
     }
+
+    private void AppearancePopup_Closed(object? sender, EventArgs e) => AppearancePopupClosed?.Invoke(this);
 
     private void StyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -439,7 +507,8 @@ public partial class NoteControl : UserControl
             SetAppearance(_appearance with
             {
                 StyleId = style.Id,
-                Color = style.DefaultColor
+                Color = style.DefaultColor,
+                CaretColor = style.CaretColor
             });
         }
     }
