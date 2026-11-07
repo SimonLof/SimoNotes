@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <None Update="Assets\SimoNotes.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\PressStart2P-OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\PressStart2P-Regular.ttf" />
   </ItemGroup>
 
 </Project>

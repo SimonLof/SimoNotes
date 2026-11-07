@@ -24,6 +24,7 @@ This checklist tracks the requirements from the original SimoNotes brief against
 
 - [ ] Address global hotkey conflicts: warn about common application shortcuts and prevent bindings such as `Ctrl+N` from triggering SimoNotes instead of the foreground app's command, such as VS Code's New Window action.
 - [ ] Expand the note color palette and allow users to choose custom colors.
+- [ ] Load custom note style definitions from a per-user JSON config, such as `~/.simonotes/config.json`.
 
 ## Desktop Integration Hardening
 
@@ -37,8 +38,8 @@ This checklist tracks the requirements from the original SimoNotes brief against
 
 - [x] Add a user-accessible way to create notes in addition to the global shortcut, such as the tray menu.
 - [x] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
-- [x] Persist and restore each note's text, position, dimensions, color, and opacity across application restarts.
-- [x] Add per-note color and opacity selection, with configurable color and opacity defaults for new notes.
+- [x] Persist and restore each note's text, position, dimensions, style, color, and opacity across application restarts.
+- [x] Add per-note Note and Terminal styles, with configurable style, color, and opacity defaults for new notes.
 - [ ] Add text formatting and note-specific settings as required.
 - [ ] Keep note coordinates and sizes valid when monitors are added, removed, or rearranged.
 

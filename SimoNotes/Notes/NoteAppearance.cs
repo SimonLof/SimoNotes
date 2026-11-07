@@ -2,18 +2,21 @@ namespace SimoNotes.Notes;
 
 internal sealed record NoteAppearance(string Color, double Opacity)
 {
-    public static NoteAppearance Default => new("#FFF4B942", 1.0);
+    public static NoteAppearance Default => new(NoteStyleCatalog.Note.DefaultColor, 1.0)
+    {
+        StyleId = NoteStyleCatalog.NoteId
+    };
 
-    public static IReadOnlyList<(string Name, string Value)> Colors { get; } =
-    [
-        ("Yellow", "#FFF4B942"),
-        ("Rose", "#FFF3A6A6"),
-        ("Mint", "#FFA8D5BA"),
-        ("Sky", "#FFA7D8F0"),
-        ("Lilac", "#FFC5B4E2")
-    ];
+    public string StyleId { get; init; } = NoteStyleCatalog.NoteId;
+    public string NormalizedStyleId => StyleId == NoteStyleCatalog.LegacyOrangeTerminalId
+        ? NoteStyleCatalog.TerminalId
+        : StyleId;
 
     public bool IsValid =>
-        Colors.Any(option => option.Value == Color) &&
+        NoteStyleCatalog.All.Any(style => style.Id == NormalizedStyleId && style.Colors.Any(color => color.Value == Color)) &&
         double.IsFinite(Opacity) && Opacity is >= 0.25 and <= 1.0;
+
+    public NoteAppearance Normalize() => !IsValid
+        ? Default
+        : StyleId == NormalizedStyleId ? this : this with { StyleId = NormalizedStyleId };
 }

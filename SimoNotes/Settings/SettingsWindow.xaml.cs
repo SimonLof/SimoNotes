@@ -1,7 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using SimoNotes.Notes;
-using WpfButton = System.Windows.Controls.Button;
 
 namespace SimoNotes.Settings;
 
@@ -16,10 +16,11 @@ public partial class SettingsWindow : Window
     internal SettingsWindow(HotkeyBinding currentHotkey, NoteAppearance newNoteAppearance)
     {
         InitializeComponent();
+        DefaultStyleSelector.ItemsSource = NoteStyleCatalog.All;
         _currentHotkey = currentHotkey;
         _newNoteAppearance = newNoteAppearance;
         HotkeyButton.Content = currentHotkey.DisplayName;
-        UpdateDefaultOpacityDisplay();
+        UpdateNewNoteAppearanceControls();
         _isInitialized = true;
         PreviewKeyDown += OnPreviewKeyDown;
     }
@@ -39,7 +40,7 @@ public partial class SettingsWindow : Window
     internal void SetNewNoteAppearance(NoteAppearance appearance)
     {
         _newNoteAppearance = appearance;
-        UpdateDefaultOpacityDisplay();
+        UpdateNewNoteAppearanceControls();
     }
 
     internal void ShowRegistrationError(int error)
@@ -66,11 +67,21 @@ public partial class SettingsWindow : Window
         ResetSettingsRequested?.Invoke();
     }
 
-    private void DefaultColorSwatch_Click(object sender, RoutedEventArgs e)
+    private void FontLicenseButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is WpfButton { Tag: string color })
+        new FontLicenseWindow { Owner = this }.ShowDialog();
+    }
+
+    private void DefaultStyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitialized && !_updatingDefaultOpacity && DefaultStyleSelector.SelectedValue is string styleId)
         {
-            SetDefaultAppearance(_newNoteAppearance with { Color = color });
+            var style = NoteStyleCatalog.Get(styleId);
+            SetDefaultAppearance(_newNoteAppearance with
+            {
+                StyleId = style.Id,
+                Color = style.DefaultColor
+            });
         }
     }
 
@@ -82,16 +93,28 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void DefaultColorSwatchSelected(string color)
+    {
+        SetDefaultAppearance(_newNoteAppearance with { Color = color });
+    }
+
     private void SetDefaultAppearance(NoteAppearance appearance)
     {
         _newNoteAppearance = appearance;
-        UpdateDefaultOpacityDisplay();
+        UpdateNewNoteAppearanceControls();
         NewNoteAppearanceChangeRequested?.Invoke(appearance);
     }
 
-    private void UpdateDefaultOpacityDisplay()
+    private void UpdateNewNoteAppearanceControls()
     {
         _updatingDefaultOpacity = true;
+        DefaultStyleSelector.SelectedValue = _newNoteAppearance.StyleId;
+        var style = NoteStyleCatalog.Get(_newNoteAppearance.StyleId);
+        NoteStyleCatalog.PopulateSwatches(
+            DefaultColorSwatchGrid,
+            style,
+            _newNoteAppearance.Color,
+            DefaultColorSwatchSelected);
         DefaultOpacitySlider.Value = _newNoteAppearance.Opacity;
         DefaultOpacityValueText.Text = $"{Math.Round(_newNoteAppearance.Opacity * 100)}%";
         _updatingDefaultOpacity = false;

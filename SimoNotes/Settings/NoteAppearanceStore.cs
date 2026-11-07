@@ -16,7 +16,7 @@ internal sealed class NoteAppearanceStore
         try
         {
             var appearance = JsonSerializer.Deserialize<NoteAppearance>(File.ReadAllText(_filePath));
-            return appearance is { IsValid: true } ? appearance : NoteAppearance.Default;
+            return appearance?.Normalize() ?? NoteAppearance.Default;
         }
         catch (IOException)
         {

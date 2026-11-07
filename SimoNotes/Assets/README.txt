@@ -13,3 +13,7 @@ ImageMagick, for example:
 
 Replace Assets\SimoNotes.ico. The project copies it beside the application on
 build.
+
+Terminal notes use Press Start 2P, a pixel font distributed under the SIL Open
+Font License. The license is included in PressStart2P-OFL.txt; keep it with the
+font asset if the font is redistributed.

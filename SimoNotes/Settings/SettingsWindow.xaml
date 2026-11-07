@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Width="420"
-        Height="500"
+        Height="560"
         MinWidth="420"
-        MinHeight="500"
+        MinHeight="560"
         ResizeMode="NoResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen">
@@ -58,15 +58,18 @@
             <StackPanel Margin="12">
                 <TextBlock Margin="0,0,0,6"
                            FontWeight="SemiBold"
+                           Text="Style" />
+                <ComboBox x:Name="DefaultStyleSelector"
+                          Margin="0,0,0,10"
+                          DisplayMemberPath="Name"
+                          SelectedValuePath="Id"
+                          SelectionChanged="DefaultStyleSelector_SelectionChanged" />
+                <TextBlock Margin="0,0,0,6"
+                           FontWeight="SemiBold"
                            Text="Color" />
-                <UniformGrid Columns="5"
-                             HorizontalAlignment="Left">
-                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFF4B942" Click="DefaultColorSwatch_Click" ToolTip="Yellow"><Border Width="34" Height="24" Background="#FFF4B942" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
-                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFF3A6A6" Click="DefaultColorSwatch_Click" ToolTip="Rose"><Border Width="34" Height="24" Background="#FFF3A6A6" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
-                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFA8D5BA" Click="DefaultColorSwatch_Click" ToolTip="Mint"><Border Width="34" Height="24" Background="#FFA8D5BA" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
-                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFA7D8F0" Click="DefaultColorSwatch_Click" ToolTip="Sky"><Border Width="34" Height="24" Background="#FFA7D8F0" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
-                    <Button Width="42" Height="32" Margin="1" Padding="2" Background="Transparent" BorderThickness="0" Tag="#FFC5B4E2" Click="DefaultColorSwatch_Click" ToolTip="Lilac"><Border Width="34" Height="24" Background="#FFC5B4E2" BorderBrush="#FF6F5120" BorderThickness="1" CornerRadius="2" /></Button>
-                </UniformGrid>
+                <UniformGrid x:Name="DefaultColorSwatchGrid"
+                             Columns="5"
+                             HorizontalAlignment="Left" />
                 <DockPanel Margin="0,12,0,0">
                     <TextBlock VerticalAlignment="Center"
                                FontWeight="SemiBold"
@@ -88,10 +91,17 @@
 
         <GroupBox Grid.Row="3"
                   Header="Other settings">
-            <TextBlock Margin="12"
-                       Foreground="#FF777777"
-                       Text="Additional options can be added here."
-                       TextWrapping="Wrap" />
+            <StackPanel Margin="12">
+                <Button MinWidth="150"
+                        Padding="10,6"
+                        HorizontalAlignment="Left"
+                        Click="FontLicenseButton_Click"
+                        Content="Font credit &amp; license" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="#FF777777"
+                           Text="Press Start 2P by The Press Start 2P Project Authors."
+                           TextWrapping="Wrap" />
+            </StackPanel>
         </GroupBox>
 
         <Grid Grid.Row="4"
