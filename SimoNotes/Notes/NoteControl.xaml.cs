@@ -14,6 +14,7 @@ namespace SimoNotes.Notes;
 public partial class NoteControl : UserControl
 {
     private NoteAppearance _appearance = NoteAppearance.Default;
+    private bool _alwaysOnTop;
     private bool _updatingAppearance;
     private bool _isInitialized;
     private bool _isDragging;
@@ -39,10 +40,12 @@ public partial class NoteControl : UserControl
 
     public event EventHandler? CloseRequested;
     public event EventHandler? NoteChanged;
+    internal event EventHandler? AlwaysOnTopChanged;
     internal event EventHandler? ForegroundRequested;
     internal event Action<NoteControl>? DragRequested;
     internal event Action<NoteControl>? DragCompleted;
     internal NoteAppearance Appearance => _appearance;
+    internal bool AlwaysOnTop => _alwaysOnTop;
 
     internal void SetDesktopDpiScale(double scale)
     {
@@ -69,6 +72,22 @@ public partial class NoteControl : UserControl
         if (moveCaretToEnd)
         {
             Editor.CaretIndex = Editor.Text.Length;
+        }
+    }
+
+    internal void SetAlwaysOnTop(bool alwaysOnTop, bool notify = true)
+    {
+        if (_alwaysOnTop == alwaysOnTop)
+        {
+            return;
+        }
+
+        _alwaysOnTop = alwaysOnTop;
+        AlwaysOnTopCheckBox.IsChecked = alwaysOnTop;
+        if (notify)
+        {
+            AlwaysOnTopChanged?.Invoke(this, EventArgs.Empty);
+            NoteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -261,6 +280,11 @@ public partial class NoteControl : UserControl
 
         OpacityValueText.Text = $"{Math.Round(e.NewValue * 100)}%";
         SetAppearance(_appearance with { Opacity = e.NewValue });
+    }
+
+    private void AlwaysOnTopCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        SetAlwaysOnTop(AlwaysOnTopCheckBox.IsChecked == true);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

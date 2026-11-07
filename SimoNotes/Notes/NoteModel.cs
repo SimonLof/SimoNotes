@@ -9,4 +9,5 @@ internal sealed class NoteModel
     public string Title { get; init; } = "SimoNote";
     public string Text { get; init; } = string.Empty;
     public NoteAppearance Appearance { get; init; } = NoteAppearance.Default;
+    public bool AlwaysOnTop { get; init; }
 }

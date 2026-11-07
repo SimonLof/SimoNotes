@@ -34,6 +34,10 @@ internal sealed class NoteManager : IDisposable
         Canvas.SetTop(note, model.Top);
         _surface.Children.Add(note);
         UpdateDesktopNoteScale(note);
+        if (note.AlwaysOnTop)
+        {
+            MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
+        }
         OnNotesChanged();
         return note;
     }
@@ -64,7 +68,8 @@ internal sealed class NoteManager : IDisposable
                 Height = note.Height,
                 Title = note.Title,
                 Text = note.NoteText,
-                Appearance = note.Appearance
+                Appearance = note.Appearance,
+                AlwaysOnTop = note.AlwaysOnTop
             };
         }).ToList();
     }
@@ -121,6 +126,7 @@ internal sealed class NoteManager : IDisposable
             note.CancelDrag();
             note.CloseRequested -= OnCloseRequested;
             note.NoteChanged -= OnNoteChanged;
+            note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
             note.ForegroundRequested -= OnNoteForegroundRequested;
             note.DragRequested -= OnNoteDragRequested;
             note.DragCompleted -= OnNoteDragCompleted;
@@ -149,6 +155,7 @@ internal sealed class NoteManager : IDisposable
             note.CancelDrag();
             note.CloseRequested -= OnCloseRequested;
             note.NoteChanged -= OnNoteChanged;
+            note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
             note.ForegroundRequested -= OnNoteForegroundRequested;
             note.DragRequested -= OnNoteDragRequested;
             note.DragCompleted -= OnNoteDragCompleted;
@@ -179,9 +186,11 @@ internal sealed class NoteManager : IDisposable
             NoteText = model.Text
         };
         note.SetAppearance(model.Appearance, notify: false);
+        note.SetAlwaysOnTop(model.AlwaysOnTop, notify: false);
 
         note.CloseRequested += OnCloseRequested;
         note.NoteChanged += OnNoteChanged;
+        note.AlwaysOnTopChanged += OnAlwaysOnTopChanged;
         note.ForegroundRequested += OnNoteForegroundRequested;
         note.DragRequested += OnNoteDragRequested;
         note.DragCompleted += OnNoteDragCompleted;
@@ -199,6 +208,7 @@ internal sealed class NoteManager : IDisposable
         note.CancelDrag();
         note.CloseRequested -= OnCloseRequested;
         note.NoteChanged -= OnNoteChanged;
+        note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
         note.ForegroundRequested -= OnNoteForegroundRequested;
         note.DragRequested -= OnNoteDragRequested;
         note.DragCompleted -= OnNoteDragCompleted;
@@ -233,6 +243,11 @@ internal sealed class NoteManager : IDisposable
             return;
         }
 
+        if (note.AlwaysOnTop)
+        {
+            return;
+        }
+
         MoveToDesktopLayer(note, window);
     }
 
@@ -246,6 +261,7 @@ internal sealed class NoteManager : IDisposable
         note.CancelDrag();
         note.CloseRequested -= OnCloseRequested;
         note.NoteChanged -= OnNoteChanged;
+        note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
         note.ForegroundRequested -= OnNoteForegroundRequested;
         note.DragRequested -= OnNoteDragRequested;
         note.DragCompleted -= OnNoteDragCompleted;
@@ -255,6 +271,31 @@ internal sealed class NoteManager : IDisposable
         _floatingNoteWindows.Remove(note);
         _noteWindows.Remove(note);
         OnNotesChanged();
+    }
+
+    private void OnAlwaysOnTopChanged(object? sender, EventArgs e)
+    {
+        if (sender is not NoteControl note || !_notes.Contains(note))
+        {
+            return;
+        }
+
+        if (note.AlwaysOnTop)
+        {
+            if (_floatingNoteWindows.TryGetValue(note, out var window))
+            {
+                window.Topmost = true;
+            }
+            else
+            {
+                MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
+            }
+        }
+        else if (_floatingNoteWindows.TryGetValue(note, out var window))
+        {
+            window.Topmost = false;
+            window.Activate();
+        }
     }
 
     private void OnNoteForegroundRequested(object? sender, EventArgs e)

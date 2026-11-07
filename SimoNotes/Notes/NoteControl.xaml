@@ -29,6 +29,8 @@
             <TextBox x:Name="NoteTitle"
                      Grid.Row="0"
                      Grid.Column="0"
+                     HorizontalAlignment="Left"
+                     MaxWidth="120"
                      Margin="10,0,32,0"
                      Padding="0"
                      Background="Transparent"
@@ -155,6 +157,11 @@
                                 TickFrequency="0.01"
                                 IsSnapToTickEnabled="True"
                                 ValueChanged="OpacitySlider_ValueChanged" />
+                        <CheckBox x:Name="AlwaysOnTopCheckBox"
+                                  Margin="0,12,0,0"
+                                  Content="Always on top"
+                                  Checked="AlwaysOnTopCheckBox_Changed"
+                                  Unchecked="AlwaysOnTopCheckBox_Changed" />
                     </StackPanel>
                 </Border>
             </Popup>

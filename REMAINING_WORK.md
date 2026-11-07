@@ -40,14 +40,14 @@ This checklist tracks the requirements from the original SimoNotes brief against
 - [x] Ensure multiple notes can be created, moved, resized, edited, and closed independently.
 - [x] Persist and restore each note's text, position, dimensions, style, color, and opacity across application restarts.
 - [x] Add per-note Note and Terminal styles, with configurable style, color, and opacity defaults for new notes.
-- [ ] Add text formatting and note-specific settings as required.
+- [x] Add text formatting and note-specific settings as required.
 - [ ] Keep note coordinates and sizes valid when monitors are added, removed, or rearranged.
 
 ## Independent Display Modes
 
-- [ ] Add an always-on-top mode per note.
-- [ ] Implement always-on-top notes independently from the shared desktop-layer host, so changing one note's mode does not change the Z-order of other notes.
-- [ ] Preserve each note's content and state when switching between desktop-layer and always-on-top modes.
+- [x] Add an always-on-top mode per note.
+- [x] Implement always-on-top notes independently from the shared desktop-layer host, so changing one note's mode does not change the Z-order of other notes.
+- [x] Preserve each note's content and state when switching between desktop-layer and always-on-top modes.
 
 ## Verification and Delivery
 
