@@ -8,6 +8,7 @@ internal sealed record HotkeyBinding(uint Modifiers, uint VirtualKey)
     private const uint SupportedModifiers = 0x0001 | 0x0002 | 0x0004;
 
     public static HotkeyBinding Default => new(0x0001 | 0x0002, 0x4E);
+    public static HotkeyBinding BringAllNotesToFrontDefault => new(0x0001 | 0x0002, 0x46);
 
     public bool IsValid =>
         (Modifiers & SupportedModifiers) != 0 &&

@@ -62,6 +62,7 @@ public partial class App : Application
         _desktopHost = new DesktopHost(_hotkeyBindingStore.Load());
         _newNoteAppearance = _noteAppearanceStore.Load();
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
+        _desktopHost.BringAllNotesToFrontRequested += OnBringAllNotesToFrontRequested;
         _noteManager = new NoteManager(_desktopHost.NoteSurface);
         _desktopHost.DesktopBoundsChanging += _noteManager.CaptureDesktopNotePositions;
         _desktopHost.DesktopBoundsChanged += _noteManager.RestoreDesktopNotePositions;
@@ -98,6 +99,14 @@ public partial class App : Application
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+        if (!_desktopHost.BringAllNotesHotkeyRegistered)
+        {
+            MessageBox.Show(
+                $"Could not register {_desktopHost.CurrentBringAllNotesHotkey.DisplayName} for bringing notes to the front. Another application may already be using this shortcut. (Windows error {_desktopHost.BringAllNotesHotkeyRegistrationError})",
+                "SimoNotes",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -113,6 +122,7 @@ public partial class App : Application
         if(_desktopHost is not null)
         {
             _desktopHost.NewNoteRequested -= OnNewNoteRequested;
+            _desktopHost.BringAllNotesToFrontRequested -= OnBringAllNotesToFrontRequested;
         }
 
         _noteManager?.Dispose();
@@ -133,6 +143,7 @@ public partial class App : Application
     {
         _trayMenu = new Forms.ContextMenuStrip();
         _trayMenu.Items.Add("New note", null, (_, _) => OnNewNoteRequested(this, EventArgs.Empty));
+        _trayMenu.Items.Add("Bring all notes to front", null, (_, _) => OnBringAllNotesToFrontRequested(this, EventArgs.Empty));
         _trayMenu.Items.Add("Settings", null, (_, _) => ShowSettings());
         _trayMenu.Items.Add("Exit", null, (_, _) => Shutdown());
 
@@ -161,14 +172,19 @@ public partial class App : Application
             return;
         }
 
-        var settingsWindow = new SettingsWindow(_desktopHost.CurrentHotkey, _newNoteAppearance);
+        var settingsWindow = new SettingsWindow(
+            _desktopHost.CurrentHotkey,
+            _desktopHost.CurrentBringAllNotesHotkey,
+            _newNoteAppearance);
         settingsWindow.HotkeyChangeRequested += OnHotkeyChangeRequested;
+        settingsWindow.BringAllNotesHotkeyChangeRequested += OnBringAllNotesHotkeyChangeRequested;
         settingsWindow.NewNoteAppearanceChangeRequested += OnNewNoteAppearanceChangeRequested;
         settingsWindow.ResetSettingsRequested += OnResetSettingsRequested;
         settingsWindow.RemoveAllNotesRequested += OnRemoveAllNotesRequested;
         settingsWindow.Closed += (_, _) =>
         {
             settingsWindow.HotkeyChangeRequested -= OnHotkeyChangeRequested;
+            settingsWindow.BringAllNotesHotkeyChangeRequested -= OnBringAllNotesHotkeyChangeRequested;
             settingsWindow.NewNoteAppearanceChangeRequested -= OnNewNoteAppearanceChangeRequested;
             settingsWindow.ResetSettingsRequested -= OnResetSettingsRequested;
             settingsWindow.RemoveAllNotesRequested -= OnRemoveAllNotesRequested;
@@ -184,9 +200,15 @@ public partial class App : Application
         ApplyHotkey(hotkey);
     }
 
+    private void OnBringAllNotesHotkeyChangeRequested(HotkeyBinding hotkey)
+    {
+        ApplyBringAllNotesHotkey(hotkey);
+    }
+
     private void OnResetSettingsRequested()
     {
         ApplyHotkey(HotkeyBinding.Default);
+        ApplyBringAllNotesHotkey(HotkeyBinding.BringAllNotesToFrontDefault);
         OnNewNoteAppearanceChangeRequested(NoteAppearance.Default);
         _settingsWindow?.SetNewNoteAppearance(NoteAppearance.Default);
     }
@@ -222,9 +244,38 @@ public partial class App : Application
         }
 
         _settingsWindow.SetHotkey(hotkey);
+        SaveHotkeys();
+    }
+
+    private void ApplyBringAllNotesHotkey(HotkeyBinding hotkey)
+    {
+        if (_desktopHost is null || _settingsWindow is null)
+        {
+            return;
+        }
+
+        if (!_desktopHost.TrySetBringAllNotesHotkey(hotkey, out var error))
+        {
+            _settingsWindow.ShowRegistrationError(error, bringAllNotesHotkey: true);
+            return;
+        }
+
+        _settingsWindow.SetBringAllNotesHotkey(hotkey);
+        SaveHotkeys();
+    }
+
+    private void SaveHotkeys()
+    {
+        if (_desktopHost is null || _settingsWindow is null)
+        {
+            return;
+        }
+
         try
         {
-            _hotkeyBindingStore.Save(hotkey);
+            _hotkeyBindingStore.Save(new HotkeyBindings(
+                _desktopHost.CurrentHotkey,
+                _desktopHost.CurrentBringAllNotesHotkey));
         }
         catch (IOException)
         {
@@ -309,6 +360,11 @@ public partial class App : Application
             Text = string.Empty,
             Appearance = _newNoteAppearance
         });
+    }
+
+    private void OnBringAllNotesToFrontRequested(object? sender, EventArgs e)
+    {
+        _noteManager?.BringAllNotesToFront();
     }
 
     private WpfPoint GetPrimaryScreenNotePosition(double offset)

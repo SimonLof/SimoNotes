@@ -4,30 +4,38 @@ using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Diagnostics;
 using SimoNotes.Notes;
+using Button = System.Windows.Controls.Button;
 
 namespace SimoNotes.Settings;
 
 public partial class SettingsWindow : Window
 {
     private HotkeyBinding _currentHotkey;
+    private HotkeyBinding _currentBringAllNotesHotkey;
     private NoteAppearance _newNoteAppearance;
-    private bool _isCapturingHotkey;
+    private Button? _capturingHotkeyButton;
     private bool _updatingDefaultOpacity;
     private bool _isInitialized;
 
-    internal SettingsWindow(HotkeyBinding currentHotkey, NoteAppearance newNoteAppearance)
+    internal SettingsWindow(
+        HotkeyBinding currentHotkey,
+        HotkeyBinding currentBringAllNotesHotkey,
+        NoteAppearance newNoteAppearance)
     {
         InitializeComponent();
         DefaultStyleSelector.ItemsSource = NoteStyleCatalog.All;
         _currentHotkey = currentHotkey;
+        _currentBringAllNotesHotkey = currentBringAllNotesHotkey;
         _newNoteAppearance = newNoteAppearance;
-        HotkeyButton.Content = currentHotkey.DisplayName;
+        NewNoteHotkeyButton.Content = currentHotkey.DisplayName;
+        BringAllNotesHotkeyButton.Content = currentBringAllNotesHotkey.DisplayName;
         UpdateNewNoteAppearanceControls();
         _isInitialized = true;
         PreviewKeyDown += OnPreviewKeyDown;
     }
 
     internal event Action<HotkeyBinding>? HotkeyChangeRequested;
+    internal event Action<HotkeyBinding>? BringAllNotesHotkeyChangeRequested;
     internal event Action<NoteAppearance>? NewNoteAppearanceChangeRequested;
     internal event Action? ResetSettingsRequested;
     internal event Action? RemoveAllNotesRequested;
@@ -35,7 +43,14 @@ public partial class SettingsWindow : Window
     internal void SetHotkey(HotkeyBinding hotkey)
     {
         _currentHotkey = hotkey;
-        HotkeyButton.Content = hotkey.DisplayName;
+        NewNoteHotkeyButton.Content = hotkey.DisplayName;
+        StatusText.Text = string.Empty;
+    }
+
+    internal void SetBringAllNotesHotkey(HotkeyBinding hotkey)
+    {
+        _currentBringAllNotesHotkey = hotkey;
+        BringAllNotesHotkeyButton.Content = hotkey.DisplayName;
         StatusText.Text = string.Empty;
     }
 
@@ -45,9 +60,11 @@ public partial class SettingsWindow : Window
         UpdateNewNoteAppearanceControls();
     }
 
-    internal void ShowRegistrationError(int error)
+    internal void ShowRegistrationError(int error, bool bringAllNotesHotkey = false)
     {
-        HotkeyButton.Content = _currentHotkey.DisplayName;
+        var currentHotkey = bringAllNotesHotkey ? _currentBringAllNotesHotkey : _currentHotkey;
+        var button = bringAllNotesHotkey ? BringAllNotesHotkeyButton : NewNoteHotkeyButton;
+        button.Content = currentHotkey.DisplayName;
         StatusText.Text = $"That shortcut is unavailable (Windows error {error}).";
     }
 
@@ -58,8 +75,13 @@ public partial class SettingsWindow : Window
 
     private void HotkeyButton_Click(object sender, RoutedEventArgs e)
     {
-        _isCapturingHotkey = true;
-        HotkeyButton.Content = "Press a shortcut...";
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        _capturingHotkeyButton = button;
+        button.Content = "Press a shortcut...";
         StatusText.Text = string.Empty;
         Focus();
     }
@@ -149,7 +171,7 @@ public partial class SettingsWindow : Window
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (!_isCapturingHotkey)
+        if (_capturingHotkeyButton is not { } button)
         {
             return;
         }
@@ -158,8 +180,8 @@ public partial class SettingsWindow : Window
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key == Key.Escape)
         {
-            _isCapturingHotkey = false;
-            HotkeyButton.Content = _currentHotkey.DisplayName;
+            _capturingHotkeyButton = null;
+            RestoreHotkeyButton(button);
             return;
         }
 
@@ -183,9 +205,23 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _isCapturingHotkey = false;
-        HotkeyButton.Content = _currentHotkey.DisplayName;
-        HotkeyChangeRequested?.Invoke(hotkey);
+        _capturingHotkeyButton = null;
+        RestoreHotkeyButton(button);
+        if (button == BringAllNotesHotkeyButton)
+        {
+            BringAllNotesHotkeyChangeRequested?.Invoke(hotkey);
+        }
+        else
+        {
+            HotkeyChangeRequested?.Invoke(hotkey);
+        }
+    }
+
+    private void RestoreHotkeyButton(Button button)
+    {
+        button.Content = button == BringAllNotesHotkeyButton
+            ? _currentBringAllNotesHotkey.DisplayName
+            : _currentHotkey.DisplayName;
     }
 
     private static bool IsModifierKey(Key key) => key is

@@ -32,8 +32,7 @@ public partial class NoteControl : UserControl
         InitializeComponent();
         _dragTimer.Tick += DragTimer_Tick;
         StyleSelector.ItemsSource = NoteStyleCatalog.All;
-        Editor.PreviewMouseDown += Editor_PreviewMouseDown;
-        NoteTitle.PreviewMouseDown += Editor_PreviewMouseDown;
+        PreviewMouseDown += NoteControl_PreviewMouseDown;
         SetAppearance(_appearance, notify: false);
         _isInitialized = true;
     }
@@ -235,7 +234,7 @@ public partial class NoteControl : UserControl
         NoteChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Editor_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void NoteControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         ForegroundRequested?.Invoke(this, EventArgs.Empty);
     }

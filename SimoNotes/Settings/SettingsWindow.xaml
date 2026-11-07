@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Width="420"
-        Height="666"
+        Height="704"
         MinWidth="420"
-        MinHeight="666"
+        MinHeight="704"
         ResizeMode="NoResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen">
@@ -31,6 +31,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -39,13 +40,22 @@
 
                 <TextBlock VerticalAlignment="Center"
                            Text="New note" />
-                <Button x:Name="HotkeyButton"
+                <Button x:Name="NewNoteHotkeyButton"
+                        Grid.Column="1"
+                        MinWidth="130"
+                        Padding="12,6"
+                        Click="HotkeyButton_Click" />
+                <TextBlock Grid.Row="1"
+                           VerticalAlignment="Center"
+                           Text="Bring all notes to front" />
+                <Button x:Name="BringAllNotesHotkeyButton"
+                        Grid.Row="1"
                         Grid.Column="1"
                         MinWidth="130"
                         Padding="12,6"
                         Click="HotkeyButton_Click" />
                 <TextBlock x:Name="StatusText"
-                           Grid.Row="1"
+                           Grid.Row="2"
                            Grid.ColumnSpan="2"
                            Margin="0,8,0,0"
                            Foreground="#FF9A3D2F"

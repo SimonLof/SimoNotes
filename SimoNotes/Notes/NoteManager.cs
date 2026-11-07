@@ -16,6 +16,8 @@ internal sealed class NoteManager : IDisposable
     private readonly Dictionary<NoteControl, Window> _floatingNoteWindows = [];
     private readonly HashSet<NoteControl> _notesBeingDragged = [];
     private readonly HashSet<NoteControl> _deactivatedDuringDrag = [];
+    private bool _temporaryAllNotesToFront;
+    private bool _bringingAllNotesToFront;
     private Dictionary<NoteControl, WpfPoint>? _screenPositionsBeforeDesktopChange;
 
     public NoteManager(Canvas surface)
@@ -26,6 +28,31 @@ internal sealed class NoteManager : IDisposable
     public event EventHandler? NotesChanged;
 
     public WpfPoint ScreenToSurface(WpfPoint screenPoint) => _surface.PointFromScreen(screenPoint);
+
+    public void BringAllNotesToFront()
+    {
+        var notesToBringForward = _notes
+            .Where(note => !note.AlwaysOnTop && !_floatingNoteWindows.ContainsKey(note))
+            .ToArray();
+        if (notesToBringForward.Length == 0)
+        {
+            return;
+        }
+
+        _temporaryAllNotesToFront = true;
+        _bringingAllNotesToFront = true;
+        try
+        {
+            foreach (var note in notesToBringForward)
+            {
+                MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
+            }
+        }
+        finally
+        {
+            _bringingAllNotesToFront = false;
+        }
+    }
 
     public NoteControl CreateNote(NoteModel model)
     {
@@ -243,6 +270,12 @@ internal sealed class NoteManager : IDisposable
             return;
         }
 
+        if (_temporaryAllNotesToFront && !note.AlwaysOnTop)
+        {
+            ScheduleTemporaryLayerReconciliation();
+            return;
+        }
+
         if (note.AlwaysOnTop)
         {
             return;
@@ -300,7 +333,18 @@ internal sealed class NoteManager : IDisposable
 
     private void OnNoteForegroundRequested(object? sender, EventArgs e)
     {
-        if (sender is not NoteControl note || _floatingNoteWindows.ContainsKey(note))
+        if (sender is not NoteControl note)
+        {
+            return;
+        }
+
+        if (_temporaryAllNotesToFront)
+        {
+            ScheduleTemporaryLayerReconciliation();
+            return;
+        }
+
+        if (_floatingNoteWindows.ContainsKey(note))
         {
             return;
         }
@@ -310,6 +354,38 @@ internal sealed class NoteManager : IDisposable
             if (_notes.Contains(note) && !_floatingNoteWindows.ContainsKey(note))
             {
                 MoveToFloatingLayer(note, moveCaretToEnd: false);
+            }
+        }));
+    }
+
+    private void ScheduleTemporaryLayerReconciliation()
+    {
+        if (!_temporaryAllNotesToFront || _bringingAllNotesToFront)
+        {
+            return;
+        }
+
+        _surface.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            if (!_temporaryAllNotesToFront || _bringingAllNotesToFront)
+            {
+                return;
+            }
+
+            var focusedNote = _floatingNoteWindows
+                .FirstOrDefault(pair => pair.Value.IsActive && !pair.Key.AlwaysOnTop)
+                .Key;
+            foreach (var (note, window) in _floatingNoteWindows.ToArray())
+            {
+                if (!note.AlwaysOnTop && note != focusedNote)
+                {
+                    MoveToDesktopLayer(note, window);
+                }
+            }
+
+            if (focusedNote is null)
+            {
+                _temporaryAllNotesToFront = false;
             }
         }));
     }

@@ -38,7 +38,6 @@
                      FontWeight="SemiBold"
                      Foreground="#FF3B3020"
                      MaxLength="80"
-                     PreviewMouseDown="Editor_PreviewMouseDown"
                      Text="SimoNote"
                      TextChanged="Title_TextChanged"
                      VerticalContentAlignment="Center" />
