@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -10,15 +12,45 @@ namespace SimoNotes.Notes;
 
 internal sealed class NoteManager : IDisposable
 {
+    private sealed class ManagedNote
+    {
+        public ManagedNote(NoteModel model)
+        {
+            State = new NoteState(model);
+            DesktopView = new NoteControl();
+            FloatingView = new NoteControl();
+            Window = new Window
+            {
+                AllowsTransparency = true,
+                Background = System.Windows.Media.Brushes.Transparent,
+                Left = 0,
+                Top = 0,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                Topmost = true,
+                WindowStyle = WindowStyle.None,
+                Content = FloatingView
+            };
+        }
+
+        public NoteState State { get; }
+        public NoteControl DesktopView { get; }
+        public NoteControl FloatingView { get; }
+        public Window Window { get; }
+        public NoteControl ActiveView { get; set; } = null!;
+        public bool IsFloating => ActiveView == FloatingView;
+    }
+
     private readonly Canvas _surface;
-    private readonly List<NoteControl> _notes = [];
-    private readonly Dictionary<NoteControl, Window> _noteWindows = [];
-    private readonly Dictionary<NoteControl, Window> _floatingNoteWindows = [];
-    private readonly HashSet<NoteControl> _notesBeingDragged = [];
-    private readonly HashSet<NoteControl> _deactivatedDuringDrag = [];
+    private readonly List<ManagedNote> _notes = [];
+    private readonly Dictionary<NoteControl, ManagedNote> _managedByView = [];
+    private readonly HashSet<ManagedNote> _notesBeingDragged = [];
+    private readonly HashSet<ManagedNote> _notesBeingResized = [];
+    private readonly HashSet<ManagedNote> _deactivatedDuringManipulation = [];
     private bool _temporaryAllNotesToFront;
     private bool _bringingAllNotesToFront;
-    private Dictionary<NoteControl, WpfPoint>? _screenPositionsBeforeDesktopChange;
+    private Dictionary<ManagedNote, WpfPoint>? _screenPositionsBeforeDesktopChange;
 
     public NoteManager(Canvas surface)
     {
@@ -32,7 +64,7 @@ internal sealed class NoteManager : IDisposable
     public void BringAllNotesToFront()
     {
         var notesToBringForward = _notes
-            .Where(note => !note.AlwaysOnTop && !_floatingNoteWindows.ContainsKey(note))
+            .Where(note => !note.State.AlwaysOnTop && !note.IsFloating)
             .ToArray();
         if (notesToBringForward.Length == 0)
         {
@@ -45,7 +77,7 @@ internal sealed class NoteManager : IDisposable
         {
             foreach (var note in notesToBringForward)
             {
-                MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
+                MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false, keepDesktopViewVisible: true);
             }
         }
         finally
@@ -54,69 +86,39 @@ internal sealed class NoteManager : IDisposable
         }
     }
 
-    public NoteControl CreateNote(NoteModel model)
+    public void CreateNote(NoteModel model)
     {
-        var note = CreateNoteControl(model);
-        Canvas.SetLeft(note, model.Left);
-        Canvas.SetTop(note, model.Top);
-        _surface.Children.Add(note);
-        UpdateDesktopNoteScale(note);
-        if (note.AlwaysOnTop)
+        var note = CreateManagedNote(model);
+        if (note.State.AlwaysOnTop)
         {
             MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
         }
+
         OnNotesChanged();
-        return note;
     }
 
-    public NoteControl CreateFloatingNote(NoteModel model)
+    public void CreateFloatingNote(NoteModel model)
     {
-        var note = CreateNoteControl(model);
-        Canvas.SetLeft(note, model.Left);
-        Canvas.SetTop(note, model.Top);
-        _surface.Children.Add(note);
+        var note = CreateManagedNote(model);
         MoveToFloatingLayer(note, moveCaretToEnd: true);
-        return note;
     }
 
     public List<NoteModel> GetNoteModels()
     {
-        return _notes.Select(note =>
+        foreach (var note in _notes.Where(note => note.IsFloating))
         {
-            var surfacePosition = _floatingNoteWindows.TryGetValue(note, out var window)
-                ? _surface.PointFromScreen(window.PointToScreen(new WpfPoint(0, 0)))
-                : new WpfPoint(Canvas.GetLeft(note), Canvas.GetTop(note));
+            UpdateFloatingPosition(note);
+        }
 
-            return new NoteModel
-            {
-                Left = double.IsFinite(surfacePosition.X) ? surfacePosition.X : 0,
-                Top = double.IsFinite(surfacePosition.Y) ? surfacePosition.Y : 0,
-                Width = note.Width,
-                Height = note.Height,
-                Title = note.Title,
-                Text = note.NoteText,
-                Appearance = note.Appearance,
-                AlwaysOnTop = note.AlwaysOnTop
-            };
-        }).ToList();
+        return _notes.Select(note => note.State.ToModel()).ToList();
     }
 
     public void CaptureDesktopNotePositions(object? sender, EventArgs e)
     {
         _screenPositionsBeforeDesktopChange = [];
-        foreach (var note in _notes)
+        foreach (var note in _notes.Where(note => !note.IsFloating))
         {
-            if (_floatingNoteWindows.ContainsKey(note))
-            {
-                continue;
-            }
-
-            var left = Canvas.GetLeft(note);
-            var top = Canvas.GetTop(note);
-            var surfacePosition = new WpfPoint(
-                double.IsFinite(left) ? left : 0,
-                double.IsFinite(top) ? top : 0);
-            _screenPositionsBeforeDesktopChange[note] = _surface.PointToScreen(surfacePosition);
+            _screenPositionsBeforeDesktopChange[note] = _surface.PointToScreen(GetSurfacePosition(note));
         }
     }
 
@@ -129,16 +131,14 @@ internal sealed class NoteManager : IDisposable
 
         foreach (var (note, screenPosition) in _screenPositionsBeforeDesktopChange)
         {
-            if (!_notes.Contains(note) || _floatingNoteWindows.ContainsKey(note))
+            if (!_notes.Contains(note) || note.IsFloating)
             {
                 continue;
             }
 
             var surfacePosition = _surface.PointFromScreen(screenPosition);
-            var maximumLeft = Math.Max(0, _surface.ActualWidth - note.Width);
-            var maximumTop = Math.Max(0, _surface.ActualHeight - note.Height);
-            Canvas.SetLeft(note, Math.Clamp(surfacePosition.X, 0, maximumLeft));
-            Canvas.SetTop(note, Math.Clamp(surfacePosition.Y, 0, maximumTop));
+            note.State.Left = Math.Clamp(surfacePosition.X, 0, Math.Max(0, _surface.ActualWidth - note.State.Width));
+            note.State.Top = Math.Clamp(surfacePosition.Y, 0, Math.Max(0, _surface.ActualHeight - note.State.Height));
             UpdateDesktopNoteScale(note, screenPosition);
         }
 
@@ -150,190 +150,211 @@ internal sealed class NoteManager : IDisposable
     {
         foreach (var note in _notes.ToArray())
         {
-            note.CancelDrag();
-            note.CloseRequested -= OnCloseRequested;
-            note.NoteChanged -= OnNoteChanged;
-            note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
-            note.ForegroundRequested -= OnNoteForegroundRequested;
-            note.DragRequested -= OnNoteDragRequested;
-            note.DragCompleted -= OnNoteDragCompleted;
-            _surface.Children.Remove(note);
-            _notesBeingDragged.Remove(note);
-            _deactivatedDuringDrag.Remove(note);
-
-            if (_noteWindows.Remove(note, out var window))
-            {
-                window.Deactivated -= OnFloatingNoteDeactivated;
-                window.Closed -= OnFloatingNoteClosed;
-                window.Content = null;
-                window.Close();
-            }
+            RemoveManagedNote(note, closeWindow: true);
         }
 
-        _notes.Clear();
         _surface.Children.Clear();
         OnNotesChanged();
     }
 
     public void Dispose()
     {
-        foreach (var note in _notes)
+        foreach (var note in _notes.ToArray())
         {
-            note.CancelDrag();
-            note.CloseRequested -= OnCloseRequested;
-            note.NoteChanged -= OnNoteChanged;
-            note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
-            note.ForegroundRequested -= OnNoteForegroundRequested;
-            note.DragRequested -= OnNoteDragRequested;
-            note.DragCompleted -= OnNoteDragCompleted;
+            RemoveManagedNote(note, closeWindow: true);
         }
 
-        foreach (var (note, window) in _noteWindows.ToArray())
-        {
-            window.Deactivated -= OnFloatingNoteDeactivated;
-            window.Closed -= OnFloatingNoteClosed;
-            window.Content = null;
-            window.Close();
-            _noteWindows.Remove(note);
-        }
-
-        _floatingNoteWindows.Clear();
-        _floatingNoteWindows.Clear();
-        _notes.Clear();
         _surface.Children.Clear();
     }
 
-    private NoteControl CreateNoteControl(NoteModel model)
+    private ManagedNote CreateManagedNote(NoteModel model)
     {
-        var note = new NoteControl
-        {
-            Width = model.Width,
-            Height = model.Height,
-            Title = model.Title,
-            NoteText = model.Text
-        };
-        note.SetAppearance(model.Appearance, notify: false);
-        note.SetAlwaysOnTop(model.AlwaysOnTop, notify: false);
-
-        note.CloseRequested += OnCloseRequested;
-        note.NoteChanged += OnNoteChanged;
-        note.AlwaysOnTopChanged += OnAlwaysOnTopChanged;
-        note.ForegroundRequested += OnNoteForegroundRequested;
-        note.DragRequested += OnNoteDragRequested;
-        note.DragCompleted += OnNoteDragCompleted;
+        var note = new ManagedNote(model);
+        note.State.PropertyChanged += OnNoteStateChanged;
+        note.DesktopView.AttachState(note.State);
+        note.FloatingView.AttachState(note.State);
+        note.ActiveView = note.DesktopView;
+        note.FloatingView.Visibility = Visibility.Hidden;
+        note.FloatingView.SetInteractive(false);
+        AttachView(note.DesktopView);
+        AttachView(note.FloatingView);
+        note.Window.Deactivated += OnFloatingNoteDeactivated;
+        note.Window.Closed += OnFloatingNoteClosed;
         _notes.Add(note);
+        _managedByView.Add(note.DesktopView, note);
+        _managedByView.Add(note.FloatingView, note);
+
+        Canvas.SetLeft(note.DesktopView, note.State.Left);
+        Canvas.SetTop(note.DesktopView, note.State.Top);
+        _surface.Children.Add(note.DesktopView);
+        UpdateDesktopNoteScale(note);
         return note;
+    }
+
+    private void AttachView(NoteControl view)
+    {
+        view.CloseRequested += OnCloseRequested;
+        view.ForegroundRequested += OnNoteForegroundRequested;
+        view.DragRequested += OnNoteDragRequested;
+        view.DragCompleted += OnNoteDragCompleted;
+        view.ResizeStarted += OnNoteResizeStarted;
+        view.ResizeCompleted += OnNoteResizeCompleted;
+    }
+
+    private void DetachView(NoteControl view)
+    {
+        view.CancelDrag();
+        view.CloseRequested -= OnCloseRequested;
+        view.ForegroundRequested -= OnNoteForegroundRequested;
+        view.DragRequested -= OnNoteDragRequested;
+        view.DragCompleted -= OnNoteDragCompleted;
+        view.ResizeStarted -= OnNoteResizeStarted;
+        view.ResizeCompleted -= OnNoteResizeCompleted;
+        view.SetInteractive(false);
+        view.DetachState();
+    }
+
+    private void RemoveManagedNote(ManagedNote note, bool closeWindow)
+    {
+        if (!_notes.Remove(note))
+        {
+            return;
+        }
+
+        note.State.PropertyChanged -= OnNoteStateChanged;
+        DetachView(note.DesktopView);
+        DetachView(note.FloatingView);
+        _managedByView.Remove(note.DesktopView);
+        _managedByView.Remove(note.FloatingView);
+        _notesBeingDragged.Remove(note);
+        _notesBeingResized.Remove(note);
+        _deactivatedDuringManipulation.Remove(note);
+        _surface.Children.Remove(note.DesktopView);
+        note.Window.Deactivated -= OnFloatingNoteDeactivated;
+        note.Window.Closed -= OnFloatingNoteClosed;
+        note.Window.Content = null;
+        if (closeWindow)
+        {
+            note.Window.Close();
+        }
     }
 
     private void OnCloseRequested(object? sender, EventArgs e)
     {
-        if (sender is not NoteControl note)
+        if (sender is NoteControl view &&
+            _managedByView.TryGetValue(view, out var note) &&
+            note.ActiveView == view)
         {
-            return;
+            RemoveManagedNote(note, closeWindow: true);
+            OnNotesChanged();
         }
-
-        note.CancelDrag();
-        note.CloseRequested -= OnCloseRequested;
-        note.NoteChanged -= OnNoteChanged;
-        note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
-        note.ForegroundRequested -= OnNoteForegroundRequested;
-        note.DragRequested -= OnNoteDragRequested;
-        note.DragCompleted -= OnNoteDragCompleted;
-        _notes.Remove(note);
-        _notesBeingDragged.Remove(note);
-        _deactivatedDuringDrag.Remove(note);
-        _surface.Children.Remove(note);
-
-        if (_noteWindows.Remove(note, out var window))
-        {
-            _floatingNoteWindows.Remove(note);
-            _noteWindows.Remove(note);
-            window.Deactivated -= OnFloatingNoteDeactivated;
-            window.Closed -= OnFloatingNoteClosed;
-            window.Content = null;
-            window.Close();
-        }
-
-        OnNotesChanged();
     }
 
     private void OnFloatingNoteDeactivated(object? sender, EventArgs e)
     {
-        if (sender is not Window window || window.Content is not NoteControl note)
+        if (sender is not Window window)
         {
             return;
         }
 
-        if (_notesBeingDragged.Contains(note))
+        var note = _notes.FirstOrDefault(candidate => candidate.Window == window && candidate.IsFloating);
+        if (note is null)
         {
-            _deactivatedDuringDrag.Add(note);
             return;
         }
 
-        if (_temporaryAllNotesToFront && !note.AlwaysOnTop)
+        if (_notesBeingDragged.Contains(note) || _notesBeingResized.Contains(note))
+        {
+            _deactivatedDuringManipulation.Add(note);
+            return;
+        }
+
+        if (_temporaryAllNotesToFront && !note.State.AlwaysOnTop)
         {
             ScheduleTemporaryLayerReconciliation();
             return;
         }
 
-        if (note.AlwaysOnTop)
+        if (!note.State.AlwaysOnTop)
         {
-            return;
+            MoveToDesktopLayer(note);
         }
-
-        MoveToDesktopLayer(note, window);
     }
 
     private void OnFloatingNoteClosed(object? sender, EventArgs e)
     {
-        if (sender is not Window { Content: NoteControl note })
+        if (sender is Window window)
+        {
+            var note = _notes.FirstOrDefault(candidate => candidate.Window == window);
+            if (note is not null)
+            {
+                RemoveManagedNote(note, closeWindow: false);
+                OnNotesChanged();
+            }
+        }
+    }
+
+    private void OnNoteStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not NoteState state)
         {
             return;
         }
 
-        note.CancelDrag();
-        note.CloseRequested -= OnCloseRequested;
-        note.NoteChanged -= OnNoteChanged;
-        note.AlwaysOnTopChanged -= OnAlwaysOnTopChanged;
-        note.ForegroundRequested -= OnNoteForegroundRequested;
-        note.DragRequested -= OnNoteDragRequested;
-        note.DragCompleted -= OnNoteDragCompleted;
-        _notes.Remove(note);
-        _notesBeingDragged.Remove(note);
-        _deactivatedDuringDrag.Remove(note);
-        _floatingNoteWindows.Remove(note);
-        _noteWindows.Remove(note);
+        var note = _notes.FirstOrDefault(candidate => candidate.State == state);
+        if (note is null)
+        {
+            return;
+        }
+
+        switch (e.PropertyName)
+        {
+            case nameof(NoteState.Left):
+                Canvas.SetLeft(note.DesktopView, state.Left);
+                if (!note.IsFloating)
+                {
+                    UpdateDesktopNoteScale(note);
+                }
+                break;
+            case nameof(NoteState.Top):
+                Canvas.SetTop(note.DesktopView, state.Top);
+                if (!note.IsFloating)
+                {
+                    UpdateDesktopNoteScale(note);
+                }
+                break;
+            case nameof(NoteState.AlwaysOnTop):
+                UpdateAlwaysOnTop(note);
+                break;
+        }
+
         OnNotesChanged();
     }
 
-    private void OnAlwaysOnTopChanged(object? sender, EventArgs e)
+    private void UpdateAlwaysOnTop(ManagedNote note)
     {
-        if (sender is not NoteControl note || !_notes.Contains(note))
+        if (note.State.AlwaysOnTop)
         {
-            return;
-        }
-
-        if (note.AlwaysOnTop)
-        {
-            if (_floatingNoteWindows.TryGetValue(note, out var window))
+            if (note.IsFloating)
             {
-                window.Topmost = true;
+                note.Window.Topmost = true;
             }
             else
             {
                 MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
             }
         }
-        else if (_floatingNoteWindows.TryGetValue(note, out var window))
+        else if (note.IsFloating)
         {
-            window.Topmost = false;
-            window.Activate();
+            note.Window.Topmost = false;
+            note.Window.Activate();
         }
     }
 
-    private void OnNoteForegroundRequested(object? sender, EventArgs e)
+    private void OnNoteForegroundRequested(NoteControl view, int? titleCaretIndex)
     {
-        if (sender is not NoteControl note)
+        if (!_managedByView.TryGetValue(view, out var note) ||
+            note.ActiveView != view)
         {
             return;
         }
@@ -344,16 +365,16 @@ internal sealed class NoteManager : IDisposable
             return;
         }
 
-        if (_floatingNoteWindows.ContainsKey(note))
-        {
-            return;
-        }
-
         _surface.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
-            if (_notes.Contains(note) && !_floatingNoteWindows.ContainsKey(note))
+            if (_notes.Contains(note) && !note.IsFloating)
             {
-                MoveToFloatingLayer(note, moveCaretToEnd: false);
+                MoveToFloatingLayer(
+                    note,
+                    moveCaretToEnd: false,
+                    focusEditor: false,
+                    keepDesktopViewVisible: true,
+                    focusTitleAt: titleCaretIndex);
             }
         }));
     }
@@ -372,14 +393,13 @@ internal sealed class NoteManager : IDisposable
                 return;
             }
 
-            var focusedNote = _floatingNoteWindows
-                .FirstOrDefault(pair => pair.Value.IsActive && !pair.Key.AlwaysOnTop)
-                .Key;
-            foreach (var (note, window) in _floatingNoteWindows.ToArray())
+            var focusedNote = _notes
+                .FirstOrDefault(note => note.IsFloating && note.Window.IsActive && !note.State.AlwaysOnTop);
+            foreach (var note in _notes.Where(note => note.IsFloating).ToArray())
             {
-                if (!note.AlwaysOnTop && note != focusedNote)
+                if (!note.State.AlwaysOnTop && note != focusedNote)
                 {
-                    MoveToDesktopLayer(note, window);
+                    MoveToDesktopLayer(note);
                 }
             }
 
@@ -390,65 +410,202 @@ internal sealed class NoteManager : IDisposable
         }));
     }
 
-    private void OnNoteDragRequested(NoteControl note)
+    private Window? OnNoteDragRequested(NoteControl view)
     {
+        if (!_managedByView.TryGetValue(view, out var note) || note.ActiveView != view)
+        {
+            return null;
+        }
+
         _notesBeingDragged.Add(note);
-        if (_notes.Contains(note) && !_floatingNoteWindows.ContainsKey(note))
+        if (!note.IsFloating)
         {
             MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
         }
-    }
-
-    private void OnNoteDragCompleted(NoteControl note)
-    {
-        _notesBeingDragged.Remove(note);
-        if (_deactivatedDuringDrag.Remove(note) &&
-            _floatingNoteWindows.TryGetValue(note, out var window) &&
-            !window.IsActive)
+        else
         {
-            window.Activate();
+            note.DesktopView.Visibility = Visibility.Hidden;
         }
+
+        return note.Window;
     }
 
-    private void MoveToFloatingLayer(NoteControl note, bool moveCaretToEnd, bool focusEditor = true)
+    private void OnNoteDragCompleted(NoteControl view)
     {
-        if (_floatingNoteWindows.ContainsKey(note))
+        if (!_managedByView.TryGetValue(view, out var note) || !_notesBeingDragged.Remove(note))
         {
             return;
         }
 
-        var left = Canvas.GetLeft(note);
-        var top = Canvas.GetTop(note);
-        var surfacePosition = new WpfPoint(
-            double.IsFinite(left) ? left : 0,
-            double.IsFinite(top) ? top : 0);
-        var screenPosition = _surface.PointToScreen(surfacePosition);
-        _surface.Children.Remove(note);
-        note.SetDesktopDpiScale(1);
-
-        if (!_noteWindows.TryGetValue(note, out var window))
+        if (note.IsFloating)
         {
-            window = new Window
-            {
-                AllowsTransparency = true,
-                Background = System.Windows.Media.Brushes.Transparent,
-                Left = 0,
-                Top = 0,
-                ShowInTaskbar = false,
-                ShowActivated = true,
-                SizeToContent = SizeToContent.WidthAndHeight,
-                Topmost = true,
-                WindowStyle = WindowStyle.None
-            };
-            _noteWindows.Add(note, window);
+            UpdateFloatingPosition(note);
+            UpdateDesktopNoteScale(note);
+            note.DesktopView.Visibility = Visibility.Visible;
+            _surface.UpdateLayout();
         }
 
-        window.Content = note;
+        if (_deactivatedDuringManipulation.Remove(note) && !note.Window.IsActive)
+        {
+            note.Window.Activate();
+        }
 
-        _floatingNoteWindows.Add(note, window);
-        window.Deactivated += OnFloatingNoteDeactivated;
-        window.Closed += OnFloatingNoteClosed;
-        var windowHandle = new WindowInteropHelper(window).EnsureHandle();
+        RedrawDesktopHost();
+    }
+
+    private void OnNoteResizeStarted(NoteControl view)
+    {
+        if (!_managedByView.TryGetValue(view, out var note) ||
+            note.ActiveView != view ||
+            !note.IsFloating)
+        {
+            return;
+        }
+
+        _notesBeingResized.Add(note);
+        note.DesktopView.Visibility = Visibility.Hidden;
+    }
+
+    private void OnNoteResizeCompleted(NoteControl view)
+    {
+        if (!_managedByView.TryGetValue(view, out var note) ||
+            note.ActiveView != view ||
+            !_notesBeingResized.Remove(note))
+        {
+            return;
+        }
+
+        if (note.IsFloating)
+        {
+            UpdateDesktopNoteScale(note);
+            note.DesktopView.Visibility = Visibility.Visible;
+            _surface.UpdateLayout();
+        }
+
+        if (_deactivatedDuringManipulation.Remove(note) && !note.Window.IsActive)
+        {
+            note.Window.Activate();
+        }
+
+        RedrawDesktopHost();
+    }
+
+    private void RedrawDesktopHost()
+    {
+        _surface.InvalidateVisual();
+        if (PresentationSource.FromVisual(_surface) is HwndSource source)
+        {
+            NativeMethods.RedrawWindow(
+                source.Handle,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                NativeMethods.RdwInvalidate | NativeMethods.RdwAllChildren | NativeMethods.RdwUpdateNow);
+        }
+    }
+
+    private void MoveToFloatingLayer(
+        ManagedNote note,
+        bool moveCaretToEnd,
+        bool focusEditor = true,
+        bool keepDesktopViewVisible = false,
+        int? focusTitleAt = null)
+    {
+        if (note.IsFloating)
+        {
+            return;
+        }
+
+        var screenPosition = _surface.PointToScreen(GetSurfacePosition(note));
+        var windowHandle = new WindowInteropHelper(note.Window).EnsureHandle();
+        PositionWindow(windowHandle, screenPosition);
+        note.FloatingView.Visibility = Visibility.Visible;
+        note.Window.UpdateLayout();
+        if (!note.Window.IsVisible)
+        {
+            note.Window.Show();
+        }
+
+        note.Window.UpdateLayout();
+        PositionWindow(windowHandle, screenPosition);
+        note.Window.Activate();
+        SetActiveView(note, note.FloatingView, focusEditor, moveCaretToEnd, keepDesktopViewVisible, focusTitleAt);
+        OnNotesChanged();
+    }
+
+    private void MoveToDesktopLayer(ManagedNote note)
+    {
+        if (!note.IsFloating)
+        {
+            return;
+        }
+
+        var screenPosition = note.Window.PointToScreen(new WpfPoint(0, 0));
+        var surfacePosition = _surface.PointFromScreen(screenPosition);
+        note.State.Left = surfacePosition.X;
+        note.State.Top = surfacePosition.Y;
+        UpdateDesktopNoteScale(note, screenPosition);
+        SetActiveView(note, note.DesktopView, focusEditor: false, moveCaretToEnd: false);
+        note.Window.Hide();
+        _deactivatedDuringManipulation.Remove(note);
+        OnNotesChanged();
+    }
+
+    private void SetActiveView(
+        ManagedNote note,
+        NoteControl nextView,
+        bool focusEditor,
+        bool moveCaretToEnd,
+        bool keepPreviousVisible = false,
+        int? focusTitleAt = null)
+    {
+        var previousView = note.ActiveView;
+        if (previousView == nextView)
+        {
+            if (focusEditor)
+            {
+                nextView.FocusEditor(moveCaretToEnd);
+            }
+            return;
+        }
+
+        var hadKeyboardFocus = previousView.HasKeyboardFocusWithin;
+        var selection = previousView.CaptureEditorSelection();
+        nextView.Visibility = Visibility.Visible;
+        if (nextView == note.DesktopView)
+        {
+            _surface.UpdateLayout();
+        }
+        else
+        {
+            note.Window.UpdateLayout();
+        }
+
+        previousView.SetInteractive(false);
+        note.ActiveView = nextView;
+        nextView.SetInteractive(true);
+        nextView.RestoreEditorSelection(selection);
+        if (hadKeyboardFocus && !focusEditor)
+        {
+            Keyboard.ClearFocus();
+        }
+
+        if (focusEditor)
+        {
+            nextView.FocusEditor(moveCaretToEnd);
+        }
+        else if (focusTitleAt is int caretIndex)
+        {
+            nextView.FocusTitleAt(caretIndex);
+        }
+
+        if (!keepPreviousVisible)
+        {
+            previousView.Visibility = Visibility.Hidden;
+        }
+    }
+
+    private static void PositionWindow(IntPtr windowHandle, WpfPoint screenPosition)
+    {
         if (!NativeMethods.SetWindowPos(
                 windowHandle,
                 IntPtr.Zero,
@@ -458,79 +615,31 @@ internal sealed class NoteManager : IDisposable
                 0,
                 NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate | NativeMethods.SwpNoZOrder))
         {
-            _floatingNoteWindows.Remove(note);
-            window.Deactivated -= OnFloatingNoteDeactivated;
-            window.Closed -= OnFloatingNoteClosed;
-            window.Content = null;
-            window.Close();
-            Canvas.SetLeft(note, surfacePosition.X);
-            Canvas.SetTop(note, surfacePosition.Y);
-            _surface.Children.Add(note);
-            UpdateDesktopNoteScale(note, screenPosition);
             throw new InvalidOperationException("Could not position the note in the foreground layer.");
         }
-
-        if (!window.IsVisible)
-        {
-            window.Show();
-        }
-
-        window.Activate();
-        if (focusEditor)
-        {
-            note.FocusEditor(moveCaretToEnd);
-        }
-        OnNotesChanged();
     }
 
-    private void MoveToDesktopLayer(NoteControl note, Window window)
+    private void UpdateFloatingPosition(ManagedNote note)
     {
-        if (!_floatingNoteWindows.Remove(note))
-        {
-            return;
-        }
-
-        _deactivatedDuringDrag.Remove(note);
-        window.Deactivated -= OnFloatingNoteDeactivated;
-        window.Closed -= OnFloatingNoteClosed;
-        var screenPosition = window.PointToScreen(new WpfPoint(0, 0));
-        var surfacePosition = _surface.PointFromScreen(screenPosition);
-        Canvas.SetLeft(note, surfacePosition.X);
-        Canvas.SetTop(note, surfacePosition.Y);
-        window.Content = null;
-        _surface.Children.Add(note);
-        UpdateDesktopNoteScale(note, screenPosition);
-        window.Hide();
-        OnNotesChanged();
+        var surfacePosition = _surface.PointFromScreen(note.Window.PointToScreen(new WpfPoint(0, 0)));
+        note.State.Left = surfacePosition.X;
+        note.State.Top = surfacePosition.Y;
     }
 
-    private void OnNoteChanged(object? sender, EventArgs e)
-    {
-        if (sender is NoteControl note && !_floatingNoteWindows.ContainsKey(note))
-        {
-            UpdateDesktopNoteScale(note);
-        }
+    private WpfPoint GetSurfacePosition(ManagedNote note) => new(
+        double.IsFinite(note.State.Left) ? note.State.Left : 0,
+        double.IsFinite(note.State.Top) ? note.State.Top : 0);
 
-        OnNotesChanged();
-    }
+    private void UpdateDesktopNoteScale(ManagedNote note) =>
+        UpdateDesktopNoteScale(note, _surface.PointToScreen(GetSurfacePosition(note)));
 
-    private void UpdateDesktopNoteScale(NoteControl note)
-    {
-        var left = Canvas.GetLeft(note);
-        var top = Canvas.GetTop(note);
-        var surfacePosition = new WpfPoint(
-            double.IsFinite(left) ? left : 0,
-            double.IsFinite(top) ? top : 0);
-        UpdateDesktopNoteScale(note, _surface.PointToScreen(surfacePosition));
-    }
-
-    private void UpdateDesktopNoteScale(NoteControl note, WpfPoint screenPosition)
+    private void UpdateDesktopNoteScale(ManagedNote note, WpfPoint screenPosition)
     {
         var surfaceDpiScale = VisualTreeHelper.GetDpi(_surface).DpiScaleX;
         var monitorDpiScale = NativeMethods.GetDpiScaleAt(
             (int)Math.Round(screenPosition.X),
             (int)Math.Round(screenPosition.Y));
-        note.SetDesktopDpiScale(monitorDpiScale / surfaceDpiScale);
+        note.DesktopView.SetDesktopDpiScale(monitorDpiScale / surfaceDpiScale);
     }
 
     private void OnNotesChanged()

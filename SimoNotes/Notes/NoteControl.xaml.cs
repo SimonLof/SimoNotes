@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.ComponentModel;
 using SimoNotes.Desktop;
 using UserControl = System.Windows.Controls.UserControl;
 using WpfPoint = System.Windows.Point;
@@ -17,6 +18,8 @@ public partial class NoteControl : UserControl
     private bool _alwaysOnTop;
     private bool _updatingAppearance;
     private bool _isInitialized;
+    private bool _applyingState;
+    private bool _isInteractive = true;
     private bool _isDragging;
     private readonly DispatcherTimer _dragTimer = new(DispatcherPriority.Input)
     {
@@ -38,13 +41,65 @@ public partial class NoteControl : UserControl
     }
 
     public event EventHandler? CloseRequested;
-    public event EventHandler? NoteChanged;
-    internal event EventHandler? AlwaysOnTopChanged;
-    internal event EventHandler? ForegroundRequested;
-    internal event Action<NoteControl>? DragRequested;
+    internal event Action<NoteControl, int?>? ForegroundRequested;
+    internal event Func<NoteControl, Window?>? DragRequested;
     internal event Action<NoteControl>? DragCompleted;
+    internal event Action<NoteControl>? ResizeStarted;
+    internal event Action<NoteControl>? ResizeCompleted;
     internal NoteAppearance Appearance => _appearance;
     internal bool AlwaysOnTop => _alwaysOnTop;
+    internal NoteState? State { get; private set; }
+    internal bool HasKeyboardFocusWithin => IsKeyboardFocusWithin;
+
+    internal void AttachState(NoteState state)
+    {
+        if (State is not null)
+        {
+            State.PropertyChanged -= OnStatePropertyChanged;
+        }
+
+        State = state;
+        State.PropertyChanged += OnStatePropertyChanged;
+        ApplyState();
+    }
+
+    internal void DetachState()
+    {
+        if (State is not null)
+        {
+            State.PropertyChanged -= OnStatePropertyChanged;
+            State = null;
+        }
+    }
+
+    internal void SetInteractive(bool isInteractive)
+    {
+        if (_isInteractive == isInteractive)
+        {
+            return;
+        }
+
+        if (!isInteractive)
+        {
+            AppearancePopup.IsOpen = false;
+        }
+
+        _isInteractive = isInteractive;
+        IsHitTestVisible = isInteractive;
+        Focusable = isInteractive;
+        Editor.IsTabStop = isInteractive;
+        NoteTitle.IsTabStop = isInteractive;
+    }
+
+    internal (int CaretIndex, int SelectionStart, int SelectionLength) CaptureEditorSelection() =>
+        (Editor.CaretIndex, Editor.SelectionStart, Editor.SelectionLength);
+
+    internal void RestoreEditorSelection((int CaretIndex, int SelectionStart, int SelectionLength) selection)
+    {
+        Editor.SelectionStart = Math.Clamp(selection.SelectionStart, 0, Editor.Text.Length);
+        Editor.SelectionLength = Math.Clamp(selection.SelectionLength, 0, Editor.Text.Length - Editor.SelectionStart);
+        Editor.CaretIndex = Math.Clamp(selection.CaretIndex, 0, Editor.Text.Length);
+    }
 
     internal void SetDesktopDpiScale(double scale)
     {
@@ -74,8 +129,22 @@ public partial class NoteControl : UserControl
         }
     }
 
+    internal void FocusTitleAt(int caretIndex)
+    {
+        NoteTitle.Focus();
+        NoteTitle.SelectionStart = Math.Clamp(caretIndex, 0, NoteTitle.Text.Length);
+        NoteTitle.SelectionLength = 0;
+        NoteTitle.CaretIndex = NoteTitle.SelectionStart;
+    }
+
     internal void SetAlwaysOnTop(bool alwaysOnTop, bool notify = true)
     {
+        if (notify && _isInteractive && State is not null)
+        {
+            State.AlwaysOnTop = alwaysOnTop;
+            return;
+        }
+
         if (_alwaysOnTop == alwaysOnTop)
         {
             return;
@@ -83,16 +152,16 @@ public partial class NoteControl : UserControl
 
         _alwaysOnTop = alwaysOnTop;
         AlwaysOnTopCheckBox.IsChecked = alwaysOnTop;
-        if (notify)
-        {
-            AlwaysOnTopChanged?.Invoke(this, EventArgs.Empty);
-            NoteChanged?.Invoke(this, EventArgs.Empty);
-        }
     }
 
     internal void SetAppearance(NoteAppearance appearance, bool notify = true)
     {
         appearance = appearance.Normalize();
+        if (notify && _isInteractive && State is not null)
+        {
+            State.Appearance = appearance;
+            return;
+        }
 
         _appearance = appearance;
         var style = NoteStyleCatalog.Get(appearance.StyleId);
@@ -131,9 +200,56 @@ public partial class NoteControl : UserControl
         OpacityValueText.Text = $"{Math.Round(appearance.Opacity * 100)}%";
         _updatingAppearance = false;
 
-        if (notify)
+    }
+
+    private void ApplyState(string? propertyName = null)
+    {
+        if (State is null)
         {
-            NoteChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _applyingState = true;
+        if (propertyName is null or nameof(NoteState.Width))
+        {
+            Width = State.Width;
+        }
+
+        if (propertyName is null or nameof(NoteState.Height))
+        {
+            Height = State.Height;
+        }
+
+        if (propertyName is null or nameof(NoteState.Title) && NoteTitle.Text != State.Title)
+        {
+            NoteTitle.Text = State.Title;
+        }
+
+        if (propertyName is null or nameof(NoteState.Text) && Editor.Text != State.Text)
+        {
+            Editor.Text = State.Text;
+        }
+
+        if (propertyName is null or nameof(NoteState.Appearance))
+        {
+            SetAppearance(State.Appearance, notify: false);
+        }
+
+        if (propertyName is null or nameof(NoteState.AlwaysOnTop))
+        {
+            SetAlwaysOnTop(State.AlwaysOnTop, notify: false);
+        }
+
+        _applyingState = false;
+    }
+
+    private void OnStatePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(NoteState.Width) or nameof(NoteState.Height) or
+            nameof(NoteState.Title) or nameof(NoteState.Text) or nameof(NoteState.Appearance) or
+            nameof(NoteState.AlwaysOnTop))
+        {
+            ApplyState(e.PropertyName);
         }
     }
 
@@ -144,11 +260,16 @@ public partial class NoteControl : UserControl
             return;
         }
 
+        if (!_isInteractive)
+        {
+            return;
+        }
+
         e.Handled = true;
         var dragStartPointer = DragSurface.PointToScreen(e.GetPosition(DragSurface));
-        DragRequested?.Invoke(this);
+        var dragWindow = DragRequested?.Invoke(this);
 
-        var window = Window.GetWindow(this);
+        var window = dragWindow ?? Window.GetWindow(this);
         if (window is null ||
             !NativeMethods.GetWindowRect(new WindowInteropHelper(window).Handle, out var windowBounds))
         {
@@ -216,7 +337,6 @@ public partial class NoteControl : UserControl
         _dragWindow = null;
         _dragWindowHandle = IntPtr.Zero;
         DragCompleted?.Invoke(this);
-        NoteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void CancelDrag()
@@ -229,34 +349,91 @@ public partial class NoteControl : UserControl
 
     private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
     {
+        if (!_isInteractive)
+        {
+            return;
+        }
+
         Width = Math.Max(MinWidth, Width + e.HorizontalChange);
         Height = Math.Max(MinHeight, Height + e.VerticalChange);
-        NoteChanged?.Invoke(this, EventArgs.Empty);
+        if (State is not null)
+        {
+            State.Width = Width;
+            State.Height = Height;
+        }
+
+    }
+
+    private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
+    {
+        if (_isInteractive)
+        {
+            ResizeStarted?.Invoke(this);
+        }
+    }
+
+    private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (_isInteractive)
+        {
+            ResizeCompleted?.Invoke(this);
+        }
     }
 
     private void NoteControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        ForegroundRequested?.Invoke(this, EventArgs.Empty);
+        if (_isInteractive &&
+            !ResizeThumb.IsMouseOver &&
+            !CloseButton.IsMouseOver &&
+            !AppearanceButton.IsMouseOver &&
+            !AppearancePopup.IsOpen)
+        {
+            int? titleCaretIndex = NoteTitle.IsMouseOver
+                ? NoteTitle.GetCharacterIndexFromPoint(e.GetPosition(NoteTitle), snapToText: true)
+                : null;
+            ForegroundRequested?.Invoke(this, titleCaretIndex);
+        }
     }
 
     private void Editor_TextChanged(object sender, TextChangedEventArgs e)
     {
-        NoteChanged?.Invoke(this, EventArgs.Empty);
+        if (_applyingState || !_isInteractive)
+        {
+            return;
+        }
+
+        if (State is not null)
+        {
+            State.Text = Editor.Text;
+        }
+
     }
 
     private void Title_TextChanged(object sender, TextChangedEventArgs e)
     {
-        NoteChanged?.Invoke(this, EventArgs.Empty);
+        if (_applyingState || !_isInteractive)
+        {
+            return;
+        }
+
+        if (State is not null)
+        {
+            State.Title = NoteTitle.Text;
+        }
+
     }
 
     private void AppearanceButton_Click(object sender, RoutedEventArgs e)
     {
-        AppearancePopup.IsOpen = !AppearancePopup.IsOpen;
+        if (_isInteractive)
+        {
+            AppearancePopup.IsOpen = !AppearancePopup.IsOpen;
+        }
     }
 
     private void StyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isInitialized && !_updatingAppearance && StyleSelector.SelectedValue is string styleId)
+        if (_isInitialized && _isInteractive && !_updatingAppearance && StyleSelector.SelectedValue is string styleId)
         {
             var style = NoteStyleCatalog.Get(styleId);
             SetAppearance(_appearance with
@@ -272,7 +449,7 @@ public partial class NoteControl : UserControl
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_updatingAppearance || OpacityValueText is null)
+        if (!_isInteractive || _updatingAppearance || OpacityValueText is null)
         {
             return;
         }
@@ -283,11 +460,17 @@ public partial class NoteControl : UserControl
 
     private void AlwaysOnTopCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        SetAlwaysOnTop(AlwaysOnTopCheckBox.IsChecked == true);
+        if (_isInteractive)
+        {
+            SetAlwaysOnTop(AlwaysOnTopCheckBox.IsChecked == true);
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        if (_isInteractive)
+        {
+            CloseRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

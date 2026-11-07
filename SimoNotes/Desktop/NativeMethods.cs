@@ -11,6 +11,9 @@ internal static class NativeMethods
     internal const uint SwpNoSize = 0x0001;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpShowWindow = 0x0040;
+    internal const uint RdwInvalidate = 0x0001;
+    internal const uint RdwAllChildren = 0x0080;
+    internal const uint RdwUpdateNow = 0x0100;
     internal const int SmXVirtualScreen = 76;
     internal const int SmYVirtualScreen = 77;
     internal const int SmCxVirtualScreen = 78;
@@ -72,6 +75,10 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(IntPtr windowHandle, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RedrawWindow(IntPtr windowHandle, IntPtr updateRectangle, IntPtr updateRegion, uint flags);
 
     [DllImport("user32.dll")]
     internal static extern int GetSystemMetrics(int index);
