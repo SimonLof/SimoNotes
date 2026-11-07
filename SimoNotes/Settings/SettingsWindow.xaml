@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings"
         Width="420"
-        Height="560"
+        Height="666"
         MinWidth="420"
-        MinHeight="560"
+        MinHeight="666"
         ResizeMode="NoResize"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen">
@@ -14,7 +14,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -104,7 +105,15 @@
             </StackPanel>
         </GroupBox>
 
-        <Grid Grid.Row="4"
+        <TextBlock Grid.Row="4"
+                   Margin="0,12,0,0"
+                   Foreground="#FF777777">
+            <Run Text="Creator: " />
+            <Hyperlink NavigateUri="https://github.com/SimonLof"
+                       RequestNavigate="CreatorLink_RequestNavigate">Simon Löfgren</Hyperlink>
+        </TextBlock>
+
+        <Grid Grid.Row="5"
               Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -124,7 +133,7 @@
                 Content="Remove all notes" />
         </Grid>
 
-        <Button Grid.Row="5"
+        <Button Grid.Row="6"
                 MinWidth="80"
                 Margin="0,12,0,0"
                 Padding="12,6"

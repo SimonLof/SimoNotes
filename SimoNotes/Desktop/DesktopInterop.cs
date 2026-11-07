@@ -6,23 +6,27 @@ internal sealed class DesktopInterop
 
     public IntPtr FindHostWindow() => _windowFinder.FindDesktopHost();
 
-    public void FitToDesktopWindow(IntPtr hostWindow, IntPtr desktopWindow)
+    public void FitToVirtualScreen(IntPtr hostWindow)
     {
-        if (!NativeMethods.GetWindowRect(desktopWindow, out var rectangle))
+        var left = NativeMethods.GetSystemMetrics(NativeMethods.SmXVirtualScreen);
+        var top = NativeMethods.GetSystemMetrics(NativeMethods.SmYVirtualScreen);
+        var width = NativeMethods.GetSystemMetrics(NativeMethods.SmCxVirtualScreen);
+        var height = NativeMethods.GetSystemMetrics(NativeMethods.SmCyVirtualScreen);
+        if (width <= 0 || height <= 0)
         {
-            throw new InvalidOperationException("Could not read the desktop window's bounds.");
+            return;
         }
 
         if (!NativeMethods.SetWindowPos(
                 hostWindow,
                 IntPtr.Zero,
-                rectangle.Left,
-                rectangle.Top,
-                rectangle.Width,
-                rectangle.Height,
+                left,
+                top,
+                width,
+                height,
                 NativeMethods.SwpNoActivate | NativeMethods.SwpNoZOrder | NativeMethods.SwpShowWindow))
         {
-            throw new InvalidOperationException("Could not position the desktop host window.");
+            throw new InvalidOperationException("Could not fit the desktop host to the virtual screen.");
         }
     }
 }

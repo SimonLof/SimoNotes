@@ -11,6 +11,7 @@ using SimoNotes.Settings;
 using System.Windows;
 using Forms = System.Windows.Forms;
 using DispatcherTimer = System.Windows.Threading.DispatcherTimer;
+using WpfPoint = System.Windows.Point;
 
 namespace SimoNotes;
 
@@ -42,6 +43,8 @@ public partial class App : Application
         _newNoteAppearance = _noteAppearanceStore.Load();
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
         _noteManager = new NoteManager(_desktopHost.NoteSurface);
+        _desktopHost.DesktopBoundsChanging += _noteManager.CaptureDesktopNotePositions;
+        _desktopHost.DesktopBoundsChanged += _noteManager.RestoreDesktopNotePositions;
         _noteManager.NotesChanged += OnNotesChanged;
         _noteSaveTimer.Tick += OnNoteSaveTimerTick;
         InitializeTrayIcon();
@@ -49,10 +52,11 @@ public partial class App : Application
         var savedNotes = _noteStateStore.Load();
         if (savedNotes is null)
         {
+            var position = GetPrimaryScreenNotePosition(80);
             _noteManager.CreateNote(new NoteModel
             {
-                Left = 80,
-                Top = 80,
+                Left = position.X,
+                Top = position.Y,
                 Width = 300,
                 Height = 210,
                 Text = "Welcome to SimoNotes"
@@ -267,15 +271,28 @@ public partial class App : Application
         }
 
         const double offset = 32;
-        var position = 80 + (_createdNoteCount++ % 10) * offset;
+        var position = GetPrimaryScreenNotePosition(80 + (_createdNoteCount++ % 10) * offset);
         _noteManager.CreateFloatingNote(new NoteModel
         {
-            Left = position,
-            Top = position,
+            Left = position.X,
+            Top = position.Y,
             Width = 300,
             Height = 210,
             Text = string.Empty,
             Appearance = _newNoteAppearance
         });
+    }
+
+    private WpfPoint GetPrimaryScreenNotePosition(double offset)
+    {
+        var primaryScreen = Forms.Screen.PrimaryScreen;
+        if (primaryScreen is null || _noteManager is null)
+        {
+            return new WpfPoint(offset, offset);
+        }
+
+        return _noteManager.ScreenToSurface(new WpfPoint(
+            primaryScreen.Bounds.Left + offset,
+            primaryScreen.Bounds.Top + offset));
     }
 }

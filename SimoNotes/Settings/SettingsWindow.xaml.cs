@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Navigation;
+using System.Diagnostics;
 using SimoNotes.Notes;
 
 namespace SimoNotes.Settings;
@@ -70,6 +72,12 @@ public partial class SettingsWindow : Window
     private void FontLicenseButton_Click(object sender, RoutedEventArgs e)
     {
         new FontLicenseWindow { Owner = this }.ShowDialog();
+    }
+
+    private void CreatorLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
     }
 
     private void DefaultStyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)

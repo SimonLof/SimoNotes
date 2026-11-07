@@ -1,8 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
+using SimoNotes.Desktop;
 using UserControl = System.Windows.Controls.UserControl;
+using WpfPoint = System.Windows.Point;
 
 namespace SimoNotes.Notes;
 
@@ -11,19 +16,39 @@ public partial class NoteControl : UserControl
     private NoteAppearance _appearance = NoteAppearance.Default;
     private bool _updatingAppearance;
     private bool _isInitialized;
+    private bool _isDragging;
+    private readonly DispatcherTimer _dragTimer = new(DispatcherPriority.Input)
+    {
+        Interval = TimeSpan.FromMilliseconds(16)
+    };
+    private Window? _dragWindow;
+    private IntPtr _dragWindowHandle;
+    private WpfPoint _dragStartPointer;
+    private WpfPoint _dragStartWindow;
 
     public NoteControl()
     {
         InitializeComponent();
+        _dragTimer.Tick += DragTimer_Tick;
         StyleSelector.ItemsSource = NoteStyleCatalog.All;
-        DragThumb.DragDelta += DragThumb_DragDelta;
+        Editor.PreviewMouseDown += Editor_PreviewMouseDown;
         SetAppearance(_appearance, notify: false);
         _isInitialized = true;
     }
 
     public event EventHandler? CloseRequested;
     public event EventHandler? NoteChanged;
+    internal event EventHandler? ForegroundRequested;
+    internal event Action<NoteControl>? DragRequested;
+    internal event Action<NoteControl>? DragCompleted;
     internal NoteAppearance Appearance => _appearance;
+
+    internal void SetDesktopDpiScale(double scale)
+    {
+        RenderTransform = Math.Abs(scale - 1) < 0.001
+            ? Transform.Identity
+            : new ScaleTransform(scale, scale);
+    }
 
     public string NoteText
     {
@@ -31,10 +56,13 @@ public partial class NoteControl : UserControl
         set => Editor.Text = value;
     }
 
-    public void FocusEditor()
+    public void FocusEditor(bool moveCaretToEnd = true)
     {
         Editor.Focus();
-        Editor.CaretIndex = Editor.Text.Length;
+        if (moveCaretToEnd)
+        {
+            Editor.CaretIndex = Editor.Text.Length;
+        }
     }
 
     internal void SetAppearance(NoteAppearance appearance, bool notify = true)
@@ -84,20 +112,94 @@ public partial class NoteControl : UserControl
         }
     }
 
-    private void DragThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    private void DragSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var window = Window.GetWindow(this);
-        if (window is not null)
+        if (e.ChangedButton != MouseButton.Left)
         {
-            window.Left += e.HorizontalChange;
-            window.Top += e.VerticalChange;
-            NoteChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        Canvas.SetLeft(this, Canvas.GetLeft(this) + e.HorizontalChange);
-        Canvas.SetTop(this, Canvas.GetTop(this) + e.VerticalChange);
+        e.Handled = true;
+        var dragStartPointer = DragSurface.PointToScreen(e.GetPosition(DragSurface));
+        DragRequested?.Invoke(this);
+
+        var window = Window.GetWindow(this);
+        if (window is null ||
+            !NativeMethods.GetWindowRect(new WindowInteropHelper(window).Handle, out var windowBounds))
+        {
+            return;
+        }
+
+        _dragWindow = window;
+        _dragWindowHandle = new WindowInteropHelper(window).Handle;
+        _dragStartPointer = dragStartPointer;
+        _dragStartWindow = new WpfPoint(windowBounds.Left, windowBounds.Top);
+        _isDragging = true;
+        _dragTimer.Start();
+    }
+
+    private void DragTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_isDragging || _dragWindow is null)
+        {
+            _dragTimer.Stop();
+            return;
+        }
+
+        if (Keyboard.IsKeyDown(Key.Escape) || !NativeMethods.IsLeftMouseButtonDown())
+        {
+            FinishDrag();
+            return;
+        }
+
+        if (!NativeMethods.GetCursorPos(out var cursorPosition))
+        {
+            return;
+        }
+
+        var pointer = new WpfPoint(cursorPosition.X, cursorPosition.Y);
+        var left = _dragStartWindow.X + pointer.X - _dragStartPointer.X;
+        var top = _dragStartWindow.Y + pointer.Y - _dragStartPointer.Y;
+        NativeMethods.SetWindowPos(
+            _dragWindowHandle,
+            IntPtr.Zero,
+            (int)Math.Round(left),
+            (int)Math.Round(top),
+            0,
+            0,
+            NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate | NativeMethods.SwpNoZOrder);
+    }
+
+    private void DragSurface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_isDragging && e.ChangedButton == MouseButton.Left)
+        {
+            FinishDrag();
+            e.Handled = true;
+        }
+    }
+
+    private void FinishDrag()
+    {
+        if (!_isDragging)
+        {
+            return;
+        }
+
+        _isDragging = false;
+        _dragTimer.Stop();
+        _dragWindow = null;
+        _dragWindowHandle = IntPtr.Zero;
+        DragCompleted?.Invoke(this);
         NoteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void CancelDrag()
+    {
+        _isDragging = false;
+        _dragTimer.Stop();
+        _dragWindow = null;
+        _dragWindowHandle = IntPtr.Zero;
     }
 
     private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
@@ -105,6 +207,11 @@ public partial class NoteControl : UserControl
         Width = Math.Max(MinWidth, Width + e.HorizontalChange);
         Height = Math.Max(MinHeight, Height + e.VerticalChange);
         NoteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Editor_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        ForegroundRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void Editor_TextChanged(object sender, TextChangedEventArgs e)
