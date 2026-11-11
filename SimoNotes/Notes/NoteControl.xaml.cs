@@ -21,10 +21,6 @@ public partial class NoteControl : UserControl
     private bool _applyingState;
     private bool _isInteractive = true;
     private bool _isDragging;
-    private readonly DispatcherTimer _dragTimer = new(DispatcherPriority.Input)
-    {
-        Interval = TimeSpan.FromMilliseconds(16)
-    };
     private readonly DispatcherTimer _terminalCaretTimer = new(DispatcherPriority.Input)
     {
         Interval = TimeSpan.FromMilliseconds(500)
@@ -37,7 +33,6 @@ public partial class NoteControl : UserControl
     public NoteControl()
     {
         InitializeComponent();
-        _dragTimer.Tick += DragTimer_Tick;
         _terminalCaretTimer.Tick += (_, _) =>
         {
             TerminalCaret.Visibility = TerminalCaret.Visibility == Visibility.Visible
@@ -311,14 +306,14 @@ public partial class NoteControl : UserControl
         _dragStartPointer = dragStartPointer;
         _dragStartWindow = new WpfPoint(windowBounds.Left, windowBounds.Top);
         _isDragging = true;
-        _dragTimer.Start();
+        CompositionTarget.Rendering += DragRendering_Tick;
     }
 
-    private void DragTimer_Tick(object? sender, EventArgs e)
+    private void DragRendering_Tick(object? sender, EventArgs e)
     {
         if (!_isDragging || _dragWindow is null)
         {
-            _dragTimer.Stop();
+            CompositionTarget.Rendering -= DragRendering_Tick;
             return;
         }
 
@@ -363,7 +358,7 @@ public partial class NoteControl : UserControl
         }
 
         _isDragging = false;
-        _dragTimer.Stop();
+        CompositionTarget.Rendering -= DragRendering_Tick;
         _dragWindow = null;
         _dragWindowHandle = IntPtr.Zero;
         DragCompleted?.Invoke(this);
@@ -372,7 +367,7 @@ public partial class NoteControl : UserControl
     internal void CancelDrag()
     {
         _isDragging = false;
-        _dragTimer.Stop();
+        CompositionTarget.Rendering -= DragRendering_Tick;
         _dragWindow = null;
         _dragWindowHandle = IntPtr.Zero;
     }
