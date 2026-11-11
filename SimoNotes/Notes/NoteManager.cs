@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using SimoNotes.Desktop;
 using WpfPoint = System.Windows.Point;
@@ -12,6 +13,8 @@ namespace SimoNotes.Notes;
 
 internal sealed class NoteManager : IDisposable
 {
+    private static readonly Duration LayerTransitionDuration = TimeSpan.FromMilliseconds(100);
+
     private sealed class ManagedNote
     {
         public ManagedNote(NoteModel model)
@@ -180,6 +183,7 @@ internal sealed class NoteManager : IDisposable
         note.FloatingView.SetInteractive(false);
         AttachView(note.DesktopView);
         AttachView(note.FloatingView);
+        note.Window.Activated += OnFloatingNoteActivated;
         note.Window.Deactivated += OnFloatingNoteDeactivated;
         note.Window.Closed += OnFloatingNoteClosed;
         _notes.Add(note);
@@ -235,7 +239,9 @@ internal sealed class NoteManager : IDisposable
         _notesBeingDragged.Remove(note);
         _notesBeingResized.Remove(note);
         _deactivatedDuringManipulation.Remove(note);
+        ResetFloatingWindowOpacity(note);
         _surface.Children.Remove(note.DesktopView);
+        note.Window.Activated -= OnFloatingNoteActivated;
         note.Window.Deactivated -= OnFloatingNoteDeactivated;
         note.Window.Closed -= OnFloatingNoteClosed;
         note.Window.Content = null;
@@ -288,8 +294,47 @@ internal sealed class NoteManager : IDisposable
 
         if (!note.State.AlwaysOnTop)
         {
-            MoveToDesktopLayer(note);
+            FadeOutFloatingNote(note);
         }
+    }
+
+    private void FadeOutFloatingNote(ManagedNote note)
+    {
+        ResetFloatingWindowOpacity(note);
+        var animation = new DoubleAnimation(1, 0, LayerTransitionDuration)
+        {
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        animation.Completed += (_, _) =>
+        {
+            if (!_notes.Contains(note) || note.Window.IsActive || !note.IsFloating)
+            {
+                ResetFloatingWindowOpacity(note);
+                return;
+            }
+
+            MoveToDesktopLayer(note);
+            ResetFloatingWindowOpacity(note);
+        };
+        note.Window.BeginAnimation(UIElement.OpacityProperty, animation);
+    }
+
+    private void OnFloatingNoteActivated(object? sender, EventArgs e)
+    {
+        if (sender is Window window)
+        {
+            var note = _notes.FirstOrDefault(candidate => candidate.Window == window);
+            if (note is not null)
+            {
+                ResetFloatingWindowOpacity(note);
+            }
+        }
+    }
+
+    private static void ResetFloatingWindowOpacity(ManagedNote note)
+    {
+        note.Window.BeginAnimation(UIElement.OpacityProperty, null);
+        note.Window.Opacity = 1;
     }
 
     private void OnFloatingNoteClosed(object? sender, EventArgs e)
