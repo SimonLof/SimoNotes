@@ -4,4 +4,6 @@ SimoNotes is published as a single-file, framework-dependent Windows application
 
 Download the .NET Desktop Runtime from Microsoft's [official .NET 10 download page](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). Choose the **.NET Desktop Runtime** for **Windows x64**.
 
+Use **Set to autostart** in Settings to launch SimoNotes when you sign in to Windows. This registers SimoNotes for the current Windows user; the same button can remove the registration.
+
 Note opacity is currently a bit inconsistent in some conditions and may not behave as expected.

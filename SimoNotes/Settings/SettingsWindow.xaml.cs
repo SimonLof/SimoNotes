@@ -16,21 +16,25 @@ public partial class SettingsWindow : Window
     private Button? _capturingHotkeyButton;
     private bool _updatingDefaultOpacity;
     private bool _isInitialized;
+    private bool _autostartEnabled;
 
     internal SettingsWindow(
         HotkeyBinding currentHotkey,
         HotkeyBinding currentBringAllNotesHotkey,
         NoteAppearance newNoteAppearance,
-        int noteCount)
+        int noteCount,
+        bool autostartEnabled)
     {
         InitializeComponent();
         DefaultStyleSelector.ItemsSource = NoteStyleCatalog.All;
         _currentHotkey = currentHotkey;
         _currentBringAllNotesHotkey = currentBringAllNotesHotkey;
         _newNoteAppearance = newNoteAppearance;
+        _autostartEnabled = autostartEnabled;
         NewNoteHotkeyButton.Content = currentHotkey.DisplayName;
         BringAllNotesHotkeyButton.Content = currentBringAllNotesHotkey.DisplayName;
         SetNoteCount(noteCount);
+        UpdateAutostartControls();
         UpdateNewNoteAppearanceControls();
         _isInitialized = true;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -41,6 +45,20 @@ public partial class SettingsWindow : Window
     internal event Action<NoteAppearance>? NewNoteAppearanceChangeRequested;
     internal event Action? ResetSettingsRequested;
     internal event Action? RemoveAllNotesRequested;
+    internal event Action<bool>? AutostartChangeRequested;
+
+    internal void SetAutostartEnabled(bool enabled)
+    {
+        _autostartEnabled = enabled;
+        UpdateAutostartControls();
+    }
+
+    internal void ShowAutostartError(string message)
+    {
+        AutostartStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x9A, 0x3D, 0x2F));
+        AutostartStatusText.Text = $"Could not update autostart: {message}";
+    }
 
     internal void SetHotkey(HotkeyBinding hotkey)
     {
@@ -101,6 +119,23 @@ public partial class SettingsWindow : Window
     private void FontLicenseButton_Click(object sender, RoutedEventArgs e)
     {
         new FontLicenseWindow { Owner = this }.ShowDialog();
+    }
+
+    private void AutostartButton_Click(object sender, RoutedEventArgs e)
+    {
+        AutostartChangeRequested?.Invoke(!_autostartEnabled);
+    }
+
+    private void UpdateAutostartControls()
+    {
+        AutostartButton.Content = _autostartEnabled
+            ? "Remove from autostart"
+            : "Set to autostart";
+        AutostartStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x77, 0x77, 0x77));
+        AutostartStatusText.Text = _autostartEnabled
+            ? "SimoNotes will start when you sign in to Windows."
+            : "SimoNotes will not start automatically.";
     }
 
     private void CreatorLink_RequestNavigate(object sender, RequestNavigateEventArgs e)

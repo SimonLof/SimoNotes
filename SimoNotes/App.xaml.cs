@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Security;
 using System.Security.Principal;
 using System.Threading;
 using DrawingIcon = System.Drawing.Icon;
@@ -180,17 +181,29 @@ public partial class App : Application
             _desktopHost.CurrentHotkey,
             _desktopHost.CurrentBringAllNotesHotkey,
             _newNoteAppearance,
-            _noteManager?.NoteCount ?? 0);
+            _noteManager?.NoteCount ?? 0,
+            autostartEnabled: false);
         settingsWindow.HotkeyChangeRequested += OnHotkeyChangeRequested;
         settingsWindow.BringAllNotesHotkeyChangeRequested += OnBringAllNotesHotkeyChangeRequested;
         settingsWindow.NewNoteAppearanceChangeRequested += OnNewNoteAppearanceChangeRequested;
+        settingsWindow.AutostartChangeRequested += OnAutostartChangeRequested;
         settingsWindow.ResetSettingsRequested += OnResetSettingsRequested;
         settingsWindow.RemoveAllNotesRequested += OnRemoveAllNotesRequested;
+        try
+        {
+            settingsWindow.SetAutostartEnabled(AutostartRegistration.IsEnabled());
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            settingsWindow.ShowAutostartError(error.Message);
+        }
+
         settingsWindow.Closed += (_, _) =>
         {
             settingsWindow.HotkeyChangeRequested -= OnHotkeyChangeRequested;
             settingsWindow.BringAllNotesHotkeyChangeRequested -= OnBringAllNotesHotkeyChangeRequested;
             settingsWindow.NewNoteAppearanceChangeRequested -= OnNewNoteAppearanceChangeRequested;
+            settingsWindow.AutostartChangeRequested -= OnAutostartChangeRequested;
             settingsWindow.ResetSettingsRequested -= OnResetSettingsRequested;
             settingsWindow.RemoveAllNotesRequested -= OnRemoveAllNotesRequested;
             _settingsWindow = null;
@@ -198,6 +211,24 @@ public partial class App : Application
 
         _settingsWindow = settingsWindow;
         settingsWindow.Show();
+    }
+
+    private void OnAutostartChangeRequested(bool enabled)
+    {
+        if (_settingsWindow is null)
+        {
+            return;
+        }
+
+        try
+        {
+            AutostartRegistration.SetEnabled(enabled);
+            _settingsWindow.SetAutostartEnabled(enabled);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            _settingsWindow.ShowAutostartError(error.Message);
+        }
     }
 
     private void OnHotkeyChangeRequested(HotkeyBinding hotkey)
