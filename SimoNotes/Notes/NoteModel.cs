@@ -10,4 +10,5 @@ internal sealed class NoteModel
     public string Text { get; init; } = string.Empty;
     public NoteAppearance Appearance { get; init; } = NoteAppearance.Default;
     public bool AlwaysOnTop { get; init; }
+    public bool IsVisible { get; init; } = true;
 }

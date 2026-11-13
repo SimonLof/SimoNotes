@@ -46,7 +46,7 @@ public partial class NoteControl : UserControl
         _isInitialized = true;
     }
 
-    public event EventHandler? CloseRequested;
+    public event EventHandler? HideRequested;
     internal event Action<NoteControl, int?, int?>? ForegroundRequested;
     internal event Action<NoteControl>? AppearanceRequested;
     internal event Action<NoteControl>? AppearancePopupClosed;
@@ -545,7 +545,7 @@ public partial class NoteControl : UserControl
     {
         if (_isInteractive)
         {
-            CloseRequested?.Invoke(this, EventArgs.Empty);
+            HideRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 }

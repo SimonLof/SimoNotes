@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Security;
 using System.Security.Principal;
 using System.Threading;
@@ -29,6 +30,7 @@ public partial class App : Application
     private Forms.ContextMenuStrip? _trayMenu;
     private DrawingIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
+    private NotesManagerWindow? _notesManagerWindow;
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
     private bool _noteShutdownSaveAttempted;
@@ -144,11 +146,20 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        _noteSaveTimer.Stop();
+        _noteShutdownSaveAttempted = true;
+        SaveNotesNow(showError: false);
+        base.OnSessionEnding(e);
+    }
+
     private void InitializeTrayIcon()
     {
         _trayMenu = new Forms.ContextMenuStrip();
         _trayMenu.Items.Add("New note", null, (_, _) => OnNewNoteRequested(this, EventArgs.Empty));
         _trayMenu.Items.Add("Bring all notes to front", null, (_, _) => OnBringAllNotesToFrontRequested(this, EventArgs.Empty));
+        _trayMenu.Items.Add("Notes", null, (_, _) => ShowNotesManager());
         _trayMenu.Items.Add("Settings", null, (_, _) => ShowSettings());
         _trayMenu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
@@ -211,6 +222,30 @@ public partial class App : Application
 
         _settingsWindow = settingsWindow;
         settingsWindow.Show();
+    }
+
+    private void ShowNotesManager()
+    {
+        if (_notesManagerWindow is { IsVisible: true })
+        {
+            _notesManagerWindow.Activate();
+            return;
+        }
+
+        if (_noteManager is null)
+        {
+            return;
+        }
+
+        var notesManagerWindow = new NotesManagerWindow(_noteManager);
+        notesManagerWindow.CreateNoteRequested += OnNewNoteRequested;
+        notesManagerWindow.Closed += (_, _) =>
+        {
+            notesManagerWindow.CreateNoteRequested -= OnNewNoteRequested;
+            _notesManagerWindow = null;
+        };
+        _notesManagerWindow = notesManagerWindow;
+        notesManagerWindow.Show();
     }
 
     private void OnAutostartChangeRequested(bool enabled)
@@ -351,7 +386,7 @@ public partial class App : Application
         SaveNotesNow();
     }
 
-    private void SaveNotesNow()
+    private void SaveNotesNow(bool showError = true)
     {
         if (_noteManager is null)
         {
@@ -364,11 +399,27 @@ public partial class App : Application
         }
         catch (IOException)
         {
-            ShowNoteSaveError();
+            HandleNoteSaveError(showError);
         }
         catch (UnauthorizedAccessException)
         {
+            HandleNoteSaveError(showError);
+        }
+        catch (SecurityException)
+        {
+            HandleNoteSaveError(showError);
+        }
+    }
+
+    private void HandleNoteSaveError(bool showError)
+    {
+        if (showError)
+        {
             ShowNoteSaveError();
+        }
+        else
+        {
+            Trace.TraceError("SimoNotes could not save notes while Windows was ending the session.");
         }
     }
 

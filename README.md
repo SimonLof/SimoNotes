@@ -6,4 +6,6 @@ Download the .NET Desktop Runtime from Microsoft's [official .NET 10 download pa
 
 Use **Set to autostart** in Settings to launch SimoNotes when you sign in to Windows. This registers SimoNotes for the current Windows user; the same button can remove the registration.
 
+Use **Manage notes** in the SimoNotes taskbar notification-area menu to browse all notes or search their titles and text.
+
 Note opacity is currently a bit inconsistent in some conditions and may not behave as expected.

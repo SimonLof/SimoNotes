@@ -75,7 +75,7 @@
                     Content="&#x00D7;"
                     FontSize="16"
                     Foreground="#FF3B3020"
-                    ToolTip="Close note" />
+                    ToolTip="Hide note" />
             <TextBox x:Name="Editor"
                      Grid.Row="1"
                      Grid.ColumnSpan="2"

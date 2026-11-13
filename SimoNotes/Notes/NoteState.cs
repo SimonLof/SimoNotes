@@ -13,6 +13,7 @@ internal sealed class NoteState : INotifyPropertyChanged
     private string _text;
     private NoteAppearance _appearance;
     private bool _alwaysOnTop;
+    private bool _isVisible;
 
     public NoteState(NoteModel model)
     {
@@ -24,6 +25,7 @@ internal sealed class NoteState : INotifyPropertyChanged
         _text = model.Text;
         _appearance = model.Appearance.Normalize();
         _alwaysOnTop = model.AlwaysOnTop;
+        _isVisible = model.IsVisible;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -36,6 +38,7 @@ internal sealed class NoteState : INotifyPropertyChanged
     public string Text { get => _text; set => SetField(ref _text, value); }
     public NoteAppearance Appearance { get => _appearance; set => SetField(ref _appearance, value.Normalize()); }
     public bool AlwaysOnTop { get => _alwaysOnTop; set => SetField(ref _alwaysOnTop, value); }
+    public bool IsVisible { get => _isVisible; set => SetField(ref _isVisible, value); }
 
     public NoteModel ToModel() => new()
     {
@@ -46,7 +49,8 @@ internal sealed class NoteState : INotifyPropertyChanged
         Title = Title,
         Text = Text,
         Appearance = Appearance,
-        AlwaysOnTop = AlwaysOnTop
+        AlwaysOnTop = AlwaysOnTop,
+        IsVisible = IsVisible
     };
 
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

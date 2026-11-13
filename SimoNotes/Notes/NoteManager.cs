@@ -69,7 +69,7 @@ internal sealed class NoteManager : IDisposable
     public void BringAllNotesToFront()
     {
         var notesToBringForward = _notes
-            .Where(note => !note.State.AlwaysOnTop && !note.IsFloating)
+            .Where(note => note.State.IsVisible && !note.State.AlwaysOnTop && !note.IsFloating)
             .ToArray();
         if (notesToBringForward.Length == 0)
         {
@@ -91,10 +91,69 @@ internal sealed class NoteManager : IDisposable
         }
     }
 
+    public IReadOnlyList<NoteState> GetNoteStates() =>
+        _notes.Select(note => note.State).ToArray();
+
+    public void BringNoteToFront(NoteState state)
+    {
+        var note = _notes.FirstOrDefault(candidate => candidate.State == state);
+        if (note is null)
+        {
+            return;
+        }
+
+        if (!note.State.IsVisible)
+        {
+            note.State.IsVisible = true;
+        }
+
+        if (note.IsFloating)
+        {
+            if (!note.Window.IsVisible)
+            {
+                UpdateNoteVisibility(note);
+            }
+
+            note.Window.Activate();
+            note.ActiveView.FocusEditor(moveCaretToEnd: false);
+            return;
+        }
+
+        MoveToFloatingLayer(note, moveCaretToEnd: false);
+    }
+
+    public void RemoveNote(NoteState state)
+    {
+        var note = _notes.FirstOrDefault(candidate => candidate.State == state);
+        if (note is null)
+        {
+            return;
+        }
+
+        RemoveManagedNote(note, closeWindow: true);
+        OnNotesChanged();
+    }
+
+    public void SetNoteVisibility(NoteState state, bool isVisible)
+    {
+        var note = _notes.FirstOrDefault(candidate => candidate.State == state);
+        if (note is null || note.State.IsVisible == isVisible)
+        {
+            return;
+        }
+
+        if (!isVisible && note.IsFloating)
+        {
+            UpdateFloatingPosition(note);
+        }
+
+        note.State.IsVisible = isVisible;
+    }
+
     public void CreateNote(NoteModel model)
     {
         var note = CreateManagedNote(model);
-        if (note.State.AlwaysOnTop)
+        if (note.State.IsVisible && note.State.AlwaysOnTop)
         {
             MoveToFloatingLayer(note, moveCaretToEnd: false, focusEditor: false);
         }
@@ -110,7 +169,7 @@ internal sealed class NoteManager : IDisposable
 
     public List<NoteModel> GetNoteModels()
     {
-        foreach (var note in _notes.Where(note => note.IsFloating))
+        foreach (var note in _notes.Where(note => note.IsFloating && note.State.IsVisible))
         {
             UpdateFloatingPosition(note);
         }
@@ -192,6 +251,7 @@ internal sealed class NoteManager : IDisposable
 
         Canvas.SetLeft(note.DesktopView, note.State.Left);
         Canvas.SetTop(note.DesktopView, note.State.Top);
+        note.DesktopView.Visibility = note.State.IsVisible ? Visibility.Visible : Visibility.Collapsed;
         _surface.Children.Add(note.DesktopView);
         UpdateDesktopNoteScale(note);
         return note;
@@ -199,7 +259,7 @@ internal sealed class NoteManager : IDisposable
 
     private void AttachView(NoteControl view)
     {
-        view.CloseRequested += OnCloseRequested;
+        view.HideRequested += OnHideRequested;
         view.ForegroundRequested += OnNoteForegroundRequested;
         view.AppearanceRequested += OnNoteAppearanceRequested;
         view.AppearancePopupClosed += OnNoteAppearancePopupClosed;
@@ -212,7 +272,7 @@ internal sealed class NoteManager : IDisposable
     private void DetachView(NoteControl view)
     {
         view.CancelDrag();
-        view.CloseRequested -= OnCloseRequested;
+        view.HideRequested -= OnHideRequested;
         view.ForegroundRequested -= OnNoteForegroundRequested;
         view.AppearanceRequested -= OnNoteAppearanceRequested;
         view.AppearancePopupClosed -= OnNoteAppearancePopupClosed;
@@ -251,14 +311,13 @@ internal sealed class NoteManager : IDisposable
         }
     }
 
-    private void OnCloseRequested(object? sender, EventArgs e)
+    private void OnHideRequested(object? sender, EventArgs e)
     {
         if (sender is NoteControl view &&
             _managedByView.TryGetValue(view, out var note) &&
             note.ActiveView == view)
         {
-            RemoveManagedNote(note, closeWindow: true);
-            OnNotesChanged();
+            SetNoteVisibility(note.State, isVisible: false);
         }
     }
 
@@ -270,7 +329,7 @@ internal sealed class NoteManager : IDisposable
         }
 
         var note = _notes.FirstOrDefault(candidate => candidate.Window == window && candidate.IsFloating);
-        if (note is null)
+        if (note is null || !note.State.IsVisible)
         {
             return;
         }
@@ -307,7 +366,7 @@ internal sealed class NoteManager : IDisposable
         };
         animation.Completed += (_, _) =>
         {
-            if (!_notes.Contains(note) || note.Window.IsActive || !note.IsFloating)
+            if (!_notes.Contains(note) || !note.State.IsVisible || note.Window.IsActive || !note.IsFloating)
             {
                 ResetFloatingWindowOpacity(note);
                 return;
@@ -382,6 +441,9 @@ internal sealed class NoteManager : IDisposable
             case nameof(NoteState.AlwaysOnTop):
                 UpdateAlwaysOnTop(note);
                 break;
+            case nameof(NoteState.IsVisible):
+                UpdateNoteVisibility(note);
+                break;
         }
 
         OnNotesChanged();
@@ -404,6 +466,40 @@ internal sealed class NoteManager : IDisposable
         {
             note.Window.Topmost = false;
             note.Window.Activate();
+        }
+    }
+
+    private static void UpdateNoteVisibility(ManagedNote note)
+    {
+        if (!note.State.IsVisible)
+        {
+            note.DesktopView.Visibility = Visibility.Collapsed;
+            note.FloatingView.Visibility = Visibility.Collapsed;
+            if (note.Window.IsVisible)
+            {
+                note.Window.Hide();
+            }
+
+            return;
+        }
+
+        if (note.IsFloating)
+        {
+            note.DesktopView.Visibility = Visibility.Hidden;
+            note.FloatingView.Visibility = Visibility.Visible;
+            if (!note.Window.IsVisible)
+            {
+                note.Window.Show();
+            }
+        }
+        else
+        {
+            note.DesktopView.Visibility = Visibility.Visible;
+            note.FloatingView.Visibility = Visibility.Hidden;
+            if (note.Window.IsVisible)
+            {
+                note.Window.Hide();
+            }
         }
     }
 
@@ -482,8 +578,8 @@ internal sealed class NoteManager : IDisposable
             }
 
             var focusedNote = _notes
-                .FirstOrDefault(note => note.IsFloating && note.Window.IsActive && !note.State.AlwaysOnTop);
-            foreach (var note in _notes.Where(note => note.IsFloating).ToArray())
+                .FirstOrDefault(note => note.State.IsVisible && note.IsFloating && note.Window.IsActive && !note.State.AlwaysOnTop);
+            foreach (var note in _notes.Where(note => note.State.IsVisible && note.IsFloating).ToArray())
             {
                 if (!note.State.AlwaysOnTop && note != focusedNote)
                 {
@@ -599,7 +695,7 @@ internal sealed class NoteManager : IDisposable
         int? focusTitleAt = null,
         int? focusEditorAt = null)
     {
-        if (note.IsFloating)
+        if (note.IsFloating || !note.State.IsVisible)
         {
             return;
         }
@@ -623,7 +719,7 @@ internal sealed class NoteManager : IDisposable
 
     private void MoveToDesktopLayer(ManagedNote note)
     {
-        if (!note.IsFloating)
+        if (!note.IsFloating || !note.State.IsVisible)
         {
             return;
         }
