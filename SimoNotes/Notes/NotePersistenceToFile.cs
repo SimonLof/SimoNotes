@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace SimoNotes.Notes;
 
-internal sealed class NoteStateStore
+internal sealed class NotePersistenceToFile : INotePersistence
 {
     private readonly string _filePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -12,7 +12,7 @@ internal sealed class NoteStateStore
 
     public List<NoteModel>? Load()
     {
-        if (!File.Exists(_filePath))
+        if(!File.Exists(_filePath))
         {
             return null;
         }
@@ -21,11 +21,11 @@ internal sealed class NoteStateStore
         {
             return JsonSerializer.Deserialize<List<NoteModel>>(File.ReadAllText(_filePath)) ?? [];
         }
-        catch (IOException)
+        catch(IOException)
         {
             return [];
         }
-        catch (JsonException)
+        catch(JsonException)
         {
             return [];
         }

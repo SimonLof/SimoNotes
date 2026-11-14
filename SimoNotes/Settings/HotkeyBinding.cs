@@ -34,4 +34,12 @@ internal sealed record HotkeyBinding(uint Modifiers, uint VirtualKey)
             return string.Join("+", parts);
         }
     }
+
+}
+
+internal sealed record HotkeyBindings(HotkeyBinding NewNote, HotkeyBinding BringAllNotesToFront)
+{
+    public static HotkeyBindings Default => new(
+        HotkeyBinding.Default,
+        HotkeyBinding.BringAllNotesToFrontDefault);
 }

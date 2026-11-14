@@ -34,9 +34,8 @@ public partial class App : Application
     private Mutex? _singleInstanceMutex;
     private bool _ownsSingleInstanceMutex;
     private bool _noteShutdownSaveAttempted;
-    private readonly HotkeyBindingStore _hotkeyBindingStore = new();
-    private readonly NoteStateStore _noteStateStore = new();
-    private readonly NoteAppearanceStore _noteAppearanceStore = new();
+    private readonly IConfigPersistence _configPersistence = new ConfigPersistenceToFile();
+    private readonly INotePersistence _notePersistence = new NotePersistenceToFile();
     private readonly DispatcherTimer _noteSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private NoteAppearance _newNoteAppearance = NoteAppearance.Default;
     private int _createdNoteCount;
@@ -63,8 +62,8 @@ public partial class App : Application
         }
 
         _ownsSingleInstanceMutex = true;
-        _desktopHost = new DesktopHost(_hotkeyBindingStore.Load());
-        _newNoteAppearance = _noteAppearanceStore.Load();
+        _desktopHost = new DesktopHost(_configPersistence.LoadHotkeyBindings());
+        _newNoteAppearance = _configPersistence.LoadNoteAppearance();
         _desktopHost.NewNoteRequested += OnNewNoteRequested;
         _desktopHost.BringAllNotesToFrontRequested += OnBringAllNotesToFrontRequested;
         _noteManager = new NoteManager(_desktopHost.NoteSurface);
@@ -74,7 +73,7 @@ public partial class App : Application
         _noteSaveTimer.Tick += OnNoteSaveTimerTick;
         InitializeTrayIcon();
 
-        var savedNotes = _noteStateStore.Load();
+        var savedNotes = _notePersistence.Load();
         if (savedNotes is null)
         {
             var position = GetPrimaryScreenNotePosition(80);
@@ -289,7 +288,7 @@ public partial class App : Application
         _newNoteAppearance = appearance;
         try
         {
-            _noteAppearanceStore.Save(appearance);
+            _configPersistence.SaveNoteAppearance(appearance);
         }
         catch (IOException)
         {
@@ -344,7 +343,7 @@ public partial class App : Application
 
         try
         {
-            _hotkeyBindingStore.Save(new HotkeyBindings(
+            _configPersistence.SaveHotkeyBindings(new HotkeyBindings(
                 _desktopHost.CurrentHotkey,
                 _desktopHost.CurrentBringAllNotesHotkey));
         }
@@ -395,7 +394,7 @@ public partial class App : Application
 
         try
         {
-            _noteStateStore.Save(_noteManager.GetNoteModels());
+            _notePersistence.Save(_noteManager.GetNoteModels());
         }
         catch (IOException)
         {
